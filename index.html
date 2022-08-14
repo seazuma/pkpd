@@ -1647,11 +1647,17 @@ Click the yellow bar between them to register dose information.
 Model:
 P .. Marsh, 1992 (using TBW)
 RMZ .. Masui, 2022 (using age,sex,height,TBW,ASA)
-K[10mg/mL] .. Kamp, 2020 (using TBW)
-F[0.05mg/mL] .. Shafer, 1990 (using TBW)
-RF[0.1mg/mL] .. Minto, 1997 (using age,sex,height,TBW)
+K [10mg/mL] .. Kamp, 2020 (using TBW)
+F [0.05mg/mL] .. Shafer, 1990 (using TBW)
+RF [0.1mg/mL] .. Minto, 1997 (using age,sex,height,TBW)
 Rb .. Wierda, 1991 (using TBW) (ke unavailable)
 Vb .. Rupp, 1987 (using age,TBW) (apply younger [30-57] model for age&lt;64 and elderly [70-84] model otherwise)
+
+TBW: total body weight
+IBW: ideal body weight = 45.4+0.89*(height-152.4)+4.5*(1-sex) [sex: 0 for male and 1 for female] (used in Masui, 2022)
+ABW: adjusted body weight = IBW+0.4*(TBW-IBW) (used in Masui, 2022)
+LBM: lean body mass, estimated by 1.1*TBW-128*(TBW/height)^2 for male and 1.07*Weight-148*(TBW/height)^2 for female (used in Minto, 1997)
+
 <hr>
 3-compartment model:
 
