@@ -2,7 +2,79 @@
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <title>pkpd</title>
 <script>
-/* model ---------------------- */
+//var DB;
+//function d(x){return document.getElementById(x);}
+//for debug
+
+/* patient and model ---------------------- */
+var Current_patient;
+
+var Patient = function(age,sex,height,TBW,high_ASA){
+ /* sex: 0 (male) or 1 (female), height[cm], TBW[kg], ASA34: 0 (ASA-PS=1,2) or 1 (ASAPS=3,4) */
+ this.age = age;
+ this.sex = sex;
+ this.height = height;
+ this.TBW = TBW;
+ this.IBW = 45.4+0.89*(height-152.4)+4.5*(1-sex);
+ this.ABW = this.IBW+0.4*(TBW-this.IBW);
+ var Wt = TBW, Ht = height;
+ this.LBM = sex==0? 1.1*Wt-128*(Wt/Ht)*(Wt/Ht): 1.07*Wt-148*(Wt/Ht)*(Wt/Ht);
+ this.high_ASA = high_ASA;
+};
+
+function load_patient(){ // eventually check validity
+ var age = parseFloat(document.getElementById("age").value);
+ if(age<0){age=1;document.getElementById("age").value=1;}
+ var TBW = parseFloat(document.getElementById("TBW").value);
+ if(TBW<0){TBW=1;document.getElementById("TBW").value=1;}
+ var height = parseFloat(document.getElementById("height").value);
+ if(height<0){height=1;document.getElementById("height").value=1;}
+ var sex = parseFloat(document.getElementById("sex").value);
+ var high_ASA = parseFloat(document.getElementById("high_ASA").value);
+ Current_patient = new Patient(age,sex,height,TBW,high_ASA);
+ document.getElementById("patient_info").innerHTML = "IBW:" + myPrecision(Current_patient.IBW)
+  + ",ABW:" + myPrecision(Current_patient.ABW) + ",LBM:" +  myPrecision(Current_patient.LBM);
+ infusion_unit(0);
+}
+
+function infusion_unit(i){
+ var input_list =  document.getElementById("convert_unit").children;
+ var mg_per_val = [1, Current_patient.TBW, Current_patient.TBW/1000*60, Current_patient.TBW/1000, parseFloat(input_list[5].value)];
+/* mg/h, mg/kg/h, mcg/kg/min, mcg/kg/h, mL/h, mg/mL */
+ var mg_h = parseFloat(input_list[i].value) * mg_per_val[i];
+ var j;for(j=0;j<5;j++)if(i!=j){
+  input_list[j].value = myPrecision(mg_h/mg_per_val[j]);
+ }
+}
+
+var Model = function(){};
+Model.prototype.set_from_VQ = function(V1,V2,V3,CL,Q2,Q3,ke){
+ this.V1=V1; this.V2=V2; this.V3=V3; this.CL=CL; this.Q2=Q2; this.Q3=Q3; this.ke = ke;
+ this.k10 = CL/V1; this.k12 = Q2/V1; this.k13 = Q3/V1; this.k21 = Q2/V2; this.k31 = Q3/V3;
+ this.set_common();
+}
+Model.prototype.set_from_k = function(k10,k12,k13,k21,k31,ke,V1){
+ this.k10=k10; this.k12=k12; this.k13=k13; this.k21=k21; this.k31=k31; this.ke = ke; this.V1 = V1;
+ this.CL = k10*V1; this.Q2 = k12*V1; this.Q3 = k13*V1; this.V2 = this.Q2/k21; this.V3 = this.Q3/k31;
+ this.set_common();
+}
+Model.prototype.set_common = function(){
+ var a = this.k10+this.k12+this.k13+this.k21+this.k31;
+ var b = this.k10*(this.k21+this.k31)+this.k12*this.k31+this.k13*this.k21+this.k21*this.k31;
+ var c = this.k10*this.k21*this.k31;
+ this.eigen = solve3(a,b,c);
+ this.c20=this.k12/(this.eigen[0]+this.k21); this.c21=this.k12/(this.eigen[1]+this.k21); this.c22=this.k12/(this.eigen[2]+this.k21);
+ this.c30=this.k13/(this.eigen[0]+this.k31); this.c31=this.k13/(this.eigen[1]+this.k31); this.c32=this.k13/(this.eigen[2]+this.k31);
+ this.ce0=this.ke/(this.eigen[0]+this.ke); this.ce1=this.ke/(this.eigen[1]+this.ke); this.ce2=this.ke/(this.eigen[2]+this.ke);
+};
+/*
+eigen: zero of characteristic polynomial; X^3 + (k10+k12+k13+k21+k31)X^2 +(k10*k21+k10*k31+k12*k31+k13*k21+k21*k31)X + k10*k21*k31
+A1 = \sum_{k=1..3} coeff[k]*exp(eigen[k]*t)
+A2 = \sum_{k=1..3} (c2k := k12/(eigen[k]+k21)) * coeff[k]*exp(eigen[k]*t)
+A3 = \sum_{k=1..3} (c3k := k13/(eigen[k]+k31)) * coeff[k]*exp(eigen[k]*t)
+C1 = \sum_{k=1..3} coeff[k]*exp(eigen[k]*t) / V1
+Ce = coeff_e*exp(-ke) + \sum_{k=1..3} (cek := ke0/(eigen[k]+ke0)) * coeff[k]*exp(eigen[k]*t) / V1
+*/
 
 var AgentUnit = function(agent_name,agent_fullname,unit,mg_per_dose){
  this.agent_name = agent_name;
@@ -18,6 +90,8 @@ var AgentUnit_list = [ /* label, fullname, unit, mg_per_dose */
  new AgentUnit("RMZ","Remimazolam","mg/h",1),
  new AgentUnit("K","Ketamine","mL",10),
  new AgentUnit("K","Ketamine","mL/h",10),
+ new AgentUnit("DEX","Dexmedetomidine","mg",1),
+ new AgentUnit("DEX","Dexmedetomidine","mg/h",1),
  new AgentUnit("F","Fentanyl","mL",0.05),
  new AgentUnit("F","Fentanyl","mL/h",0.05),
  new AgentUnit("RF","Remifentanil","mL",0.1),
@@ -54,9 +128,19 @@ function give_model(agent_name, patient){
    V1 = 21 * patient.TBW/70;
    V2 = 46 * patient.TBW/70;
    V3 = 254 * patient.TBW/70;
-   CL = 79 * Math.pow(patient.TBW/70,0.75) / 60; // L/h to L/min
+   CL = 79 * Math.pow(patient.TBW/70,0.75) / 60; /* convert L/h to L/min */
    Q2 = 97 * Math.pow(patient.TBW/70,0.75) / 60;
    Q3 = 60 * Math.pow(patient.TBW/70,0.75) / 60;
+   model.set_from_VQ(V1,V2,V3,CL,Q2,Q3,0.22);
+   return model;
+
+  case "DEX":  // Hannivoort, 2015, doi.org/10.1097/ALN.0000000000000740
+   V1 = 1.78 * patient.TBW/70;
+   V2 = 30.3 * patient.TBW/70;
+   V3 = 52 * patient.TBW/70;
+   CL = 0.686 * Math.pow(patient.TBW/70, 0.75);
+   Q2 = 2.98 * Math.pow(V2/30.3, 0.75);
+   Q3 = 0.602 * Math.pow(V3/52, 0.75);
    model.set_from_VQ(V1,V2,V3,CL,Q2,Q3,0.22);
    return model;
 
@@ -101,21 +185,19 @@ var Default_y_scale_50 = { // ng/mL
  "P": 1000,
  "RMZ": 1000,
  "K": 1000,
+ "DEX": 1,
  "F": 1,
  "RF": 1,
  "Rb": 100,
  "Vb": 100,
 }
 
-/* basic function ---------------------- */
+/* basic operation ---------------------- */
 
 function setClass(x,y){ x.setAttribute("class",y);x.setAttribute("className",y); x.className=y;}
-
-//var DB;
-//function d(x){return document.getElementById(x);}
-//for debug
-
-function myPrecision(x){ return x>=100?x.toFixed(0):x>=10?x.toFixed(1):x>=1?x.toFixed(2):x.toPrecision(2);}
+function myPrecision(x){
+ return isNaN(x)?"":x>=100?x.toFixed(0):x>=10?x.toFixed(1):x>=1?x.toFixed(2):x.toPrecision(2);
+}
 // display style
 
 function appear(x){document.getElementById(x).style.display = "block"; }
@@ -132,8 +214,7 @@ return [x,y,z];}
 function solve3(a,b,c){
  var Accuracy = 0.00001;
 // solve x^3+ax^2+bx+c=0
-// |x| < max(a,b,c)+1
-// https://mathclinic314.com/n%E6%AC%A1%E6%96%B9%E7%A8%8B%E5%BC%8F%E3%81%AE%E8%A7%A3%E3%81%AE%E9%99%90%E7%95%8C%E3%80%90%E6%8E%9B%E8%B0%B7%E3%81%AE%E5%AE%9A%E7%90%86%E3%80%91%E3%80%901975%E5%B9%B4%E5%BA%A6%E6%97%A9%E7%A8%B2/
+// |x| < max(a,b,c)+1 as explained in https://mathclinic314.com/n%E6%AC%A1%E6%96%B9%E7%A8%8B%E5%BC%8F%E3%81%AE%E8%A7%A3%E3%81%AE%E9%99%90%E7%95%8C%E3%80%90%E6%8E%9B%E8%B0%B7%E3%81%AE%E5%AE%9A%E7%90%86%E3%80%91%E3%80%901975%E5%B9%B4%E5%BA%A6%E6%97%A9%E7%A8%B2/
 // Strum method
 // F0=[c,b,a,1];
 // F1=[b,2*a,3];
@@ -173,8 +254,8 @@ function solve3(a,b,c){
  return solution;
 }
 
-/* array operation -------------------------- */
-// https://note.affi-sapo-sv.com/js-insert-into-sorted-array.php
+/* sorted array operation -------------------------- */
+// bisection method: https://note.affi-sapo-sv.com/js-insert-into-sorted-array.php
 
 function insertValue2(val,array){
  var length = array.length;
@@ -221,72 +302,17 @@ function deleteValue2(val,array){
  }
 }
 
-/* object ------- */
-
-var Current_patient;
-
-var Patient = function(age,sex,height,TBW,high_ASA){
- /* sex: 0 (male) or 1 (female), height[cm], TBW[kg], ASA34: 0 (ASA-PS=1,2) or 1 (ASAPS=3,4) */
- this.age = age;
- this.sex = sex;
- this.height = height;
- this.TBW = TBW;
- this.IBW = 45.4+0.89*(height-152.4)+4.5*(1-sex);
- this.ABW = this.IBW+0.4*(TBW-this.IBW);
- var Wt = TBW, Ht = height;
- this.LBM = sex==0? 1.1*Wt-128*(Wt/Ht)*(Wt/Ht): 1.07*Wt-148*(Wt/Ht)*(Wt/Ht);
- this.high_ASA = high_ASA;
-};
-
-function load_patient(){ // eventually check validity
- var age = parseFloat(document.getElementById("age").value);
- if(age<0){age=1;document.getElementById("age").value=1;}
- var TBW = parseFloat(document.getElementById("TBW").value);
- if(TBW<0){TBW=1;document.getElementById("TBW").value=1;}
- var height = parseFloat(document.getElementById("height").value);
- if(height<0){height=1;document.getElementById("height").value=1;}
- var sex = parseFloat(document.getElementById("sex").value);
- var high_ASA = parseFloat(document.getElementById("high_ASA").value);
- Current_patient = new Patient(age,sex,height,TBW,high_ASA);
- document.getElementById("patient_info").innerHTML = "IBW:" + myPrecision(Current_patient.IBW)
- + ",ABW:" + myPrecision(Current_patient.ABW) + ",LBM:" +  myPrecision(Current_patient.LBM);
-}
-
-var Model = function(){};
-Model.prototype.set_from_VQ = function(V1,V2,V3,CL,Q2,Q3,ke){
- this.V1=V1; this.V2=V2; this.V3=V3; this.CL=CL; this.Q2=Q2; this.Q3=Q3; this.ke = ke;
- this.k10 = CL/V1; this.k12 = Q2/V1; this.k13 = Q3/V1; this.k21 = Q2/V2; this.k31 = Q3/V3;
- this.set_common();
-}
-Model.prototype.set_from_k = function(k10,k12,k13,k21,k31,ke,V1){
- this.k10=k10; this.k12=k12; this.k13=k13; this.k21=k21; this.k31=k31; this.ke = ke; this.V1 = V1;
- this.CL = k10*V1; this.Q2 = k12*V1; this.Q3 = k13*V1; this.V2 = this.Q2/k21; this.V3 = this.Q3/k31;
- this.set_common();
-}
-Model.prototype.set_common = function(){
- var a = this.k10+this.k12+this.k13+this.k21+this.k31;
- var b = this.k10*(this.k21+this.k31)+this.k12*this.k31+this.k13*this.k21+this.k21*this.k31;
- var c = this.k10*this.k21*this.k31;
- this.eigen = solve3(a,b,c);
- this.c20=this.k12/(this.eigen[0]+this.k21); this.c21=this.k12/(this.eigen[1]+this.k21); this.c22=this.k12/(this.eigen[2]+this.k21);
- this.c30=this.k13/(this.eigen[0]+this.k31); this.c31=this.k13/(this.eigen[1]+this.k31); this.c32=this.k13/(this.eigen[2]+this.k31);
- this.ce0=this.ke/(this.eigen[0]+this.ke); this.ce1=this.ke/(this.eigen[1]+this.ke); this.ce2=this.ke/(this.eigen[2]+this.ke);
-};
+/* agent and row object ------- */
 
 var Solution = function(time, equibs, coeffs, infusion_rates, model){
  this.time = time; this.equibs = equibs.concat(); this.coeffs = coeffs.concat();
  this.infusion_rates = infusion_rates.concat();
  this.model = model;
 };
-/*
-eigen: zero of  X^3 + (k10+k12+k13+k21+k31)X^2 +(k10*k21+k10*k31+k12*k31+k13*k21+k21*k31)X + k10*k21*k31
-A1 = \sum coeff[k]*exp(eigen[k]*t)
-A2 = \sum (c2k := k12/(eigen[k]+k21)) * coeff[k]*exp(eigen[k]*t)
-A3 = \sum (c3k := k13/(eigen[k]+k31)) * coeff[k]*exp(eigen[k]*t)
-C1 = \sum coeff[k]*exp(eigen[k]*t) / V1
-Ce = coeff_e*exp(-ke) + \sum (cek := ke0/(eigen[k]+ke0)) * coeff[k]*exp(eigen[k]*t) / V1
-*/
+
 //var t_MIN = Number.MIN_SAFE_INTEGER, t_MAX = Number.MAX_SAFE_INTEGER;
+/* I avoided these for old browser */
+
 var t_MIN = -999999999999999, t_MAX = 999999999999999;
 var solution_zero = new Solution(t_MIN, [0,0,0], [0,0,0,0], [], null);
 
@@ -298,6 +324,10 @@ var Agent = function(agent_name){
  this.iv_dose_at = {};
  this.row_list = [];
  this.y_scale_50 = Default_y_scale_50[agent_name];
+ if(!Default_y_scale_50[ agent_name ]){
+  console.log("Default_y_scale_50 not found: "+agent_name);
+  this.y_scale_50 = 1;
+ }
  this.y_scale_50_manual = false;
  var idx = Agent_list.length;
  Agent_name2idx[agent_name] = idx;
@@ -323,7 +353,6 @@ Agent.prototype.add_row = function(row){
   var idx = Agent_name2idx[this.agent_name];
   create_SS_div(idx);
   create_CA_div(idx);
-  // update_graph();
 }}
 Agent.prototype.delete_row = function(row){
  var i;
@@ -363,7 +392,7 @@ Agent.prototype.calc_solutions_until = function(t2){
   if( t_next >= t2 )break;
   for(ri=0; ri<rN; ri++){
    if( t_next == each_iv_list[ri][each_pointer[ri]] ){
-    if( this.row_list[ri].iv_dose_at[t_next] ){
+    if( this.row_list[ri].iv_dose_at[t_next]!=undefined ){
      if( this.row_list[ri].is_infusion){
       new_infusion_rates[ri] = this.row_list[ri].iv_dose_at[t_next] * this.row_list[ri].mg_per_dose;
      } else {
@@ -1014,7 +1043,7 @@ function add_drug(n, time){ // div: dosearea element
  }
  else{
   appear("drug_delete_pop_up");
-  document.getElementById("pop_up_delete_name").innerHTML = Current_setting.row.agent_fullname+" ("+Current_setting.row.unit+")";
+  document.getElementById("button_delete_name").innerHTML = Current_setting.row.agent_fullname+" ("+Current_setting.row.unit+")";
   setClass(document.getElementById("dose_done_button"), "button");
   document.getElementById("dose_unit").innerHTML = Current_setting.row.unit;
   var len = Current_setting.row.iv_list.length;
@@ -1130,7 +1159,7 @@ function dose_edit(div){
  Current_setting.edit_div = div;
  Current_setting.time_old = time;
  appear("drug_delete_pop_up");
- document.getElementById("pop_up_delete_name").innerHTML = row.agent_name+"("+row.unit+")";
+ document.getElementById("button_delete_name").innerHTML = row.agent_name+"("+row.unit+")";
  appear("dose_pop_up");
  setClass(document.getElementById("dose_done_button"), "button");
  setClass(document.getElementById("dose_prev_button"), div.previousSibling.hasAttribute("time")? "button":"button_invalid");
@@ -1333,29 +1362,16 @@ function ready(){
 }
 </script>
 <style>
-
-canvas{
- position:absolute;
-}
-
+canvas{ position:absolute;}
 input{
  border: solid 2px #666666;
  background-color: #eeeeee;
  margin:5px;
  width: 50px;
 }
-
-#MS_check{
- width:20px;
-}
-
-#area1, #area2{
- position:relative;
-}
-#area2{
-margin-top:20px;
-}
-
+#MS_check{ width:20px;}
+#area1, #area2{ position:relative;}
+#area2{ margin-top:20px; }
 .pop_up{
  z-index:15;
  display:none;
@@ -1363,26 +1379,25 @@ margin-top:20px;
  border: solid 2px #666666;
  background-color:#dddddd;
 }
-
 #drug_pop_up{
- left:10px;
+ left:0px;
  top:10px;
- width:200px;
+ width:250px;
 }
 #drug_delete_pop_up{
+ left:0px;
  top:100px;
- left:10px;
  width: 200px;
  padding: 10px;
 }
 #model_setting{
+ left:0px;
  top:250px;
- left:10px;
  padding: 10px;
 }
 #dose_pop_up{
+ left: 260px;
  top:10px;
- left: 250px;
  width: 300px;
  padding: 10px;
 }
@@ -1410,7 +1425,7 @@ margin-top:20px;
  border: 3px outset;
  background-color:#cccccc;
 }
-.pop_up_delete{
+.button_delete{
  margin: 10px;
  cursor:pointer;
  border: 3px outset;
@@ -1419,7 +1434,7 @@ margin-top:20px;
 .button_wide:hover{
  background-color:#ffffff;
 }
-.pop_up_delete:hover{
+.button_delete:hover{
  background-color:#ffffff;
 }
 .button_wide_selected{
@@ -1542,6 +1557,15 @@ height:<input type="text" id="height" value="160" onfocus="this.select();" oncha
 TBW:<input type="text" id="TBW" value="50" onfocus="this.select();" onchange="load_patient();update_graph();">kg,
 ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option value="0" selected>1,2</option><option value="1">3,4</option></select>
 <span id="patient_info"></span>
+<br>
+<div id="convert_unit">
+<input type="text" value="1" onchange="infusion_unit(0);">mg/h
+=<input type="text" value="" onchange="infusion_unit(1);">mg/kg/h
+=<input type="text" value="" onchange="infusion_unit(2);">mcg/kg/min
+=<input type="text" value="" onchange="infusion_unit(3);">mcg/kg/h
+=<input type="text" value="" onchange="infusion_unit(4);">mL/h
+(<input type="text" value="10" onchange="infusion_unit(0);">mL/mg)
+</div>
 <hr>
 <div id="area1">
  <canvas id="canvas_1"></canvas>
@@ -1566,9 +1590,9 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 <!-- dose regiser -->
  <div class="pop_up" id="drug_pop_up"></div>
  <div class="pop_up" id="drug_delete_pop_up">
-  <div class="mild_label" id="pop_up_delete_name"></div>
+  <div class="mild_label" id="button_delete_name"></div>
   <div class="button_wide" onclick="drug_edit_parameter_c();"><input type="checkbox" id="MS_check" onchange="drug_edit_parameter(this.value);" >Change model</div>
-  <div class="pop_up_delete" onclick="drug_delete();">Devare row</div>
+  <div class="button_delete" onclick="drug_delete();">Devare row</div>
  </div>
  <div class="pop_up" id="model_setting"></div>
  <div class="pop_up" id="dose_pop_up">
@@ -1607,7 +1631,7 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
   <span class="button" onclick="dose_input('.')">.</span>
   <span class="button" id="dose_done_button" onclick="dose_done();">ok</span>
 <br>
-  <div class="pop_up_delete" onclick="dose_delete();" id="dose_delete_button">Devare entry</div>
+  <div class="button_delete" onclick="dose_delete();" id="dose_delete_button">Devare entry</div>
  </div>
 </div>
 
@@ -1648,6 +1672,7 @@ Model:
 P .. Marsh, 1992 (using TBW)
 RMZ .. Masui, 2022 (using age,sex,height,TBW,ASA)
 K [10mg/mL] .. Kamp, 2020 (using TBW)
+DEX .. doi: Hannivoort, 2015 (using age,sex,height,TBW) 10.1097/ALN.0000000000000740
 F [0.05mg/mL] .. Shafer, 1990 (using TBW)
 RF [0.1mg/mL] .. Minto, 1997 (using age,sex,height,TBW)
 Rb .. Wierda, 1991 (using TBW) (ke unavailable)
