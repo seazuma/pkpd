@@ -377,7 +377,7 @@ Agent.prototype.calc_solutions_until = function(t2){
  }
  while(true){
   var new_bolus = 0, new_infusion_rate = 0, new_infusion_rates = [];
-  var t_next = t_MAX,  model_next;
+  var t_next = t_MAX, model_next;
   if(current_solution !== solution_zero){
    new_infusion_rates = current_solution.infusion_rates.concat();
    model_next = current_solution.model;
@@ -1398,7 +1398,7 @@ input{
 #dose_pop_up{
  left: 260px;
  top:10px;
- width: 300px;
+ width: 250px;
  padding: 10px;
 }
 
@@ -1592,7 +1592,7 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
  <div class="pop_up" id="drug_delete_pop_up">
   <div class="mild_label" id="button_delete_name"></div>
   <div class="button_wide" onclick="drug_edit_parameter_c();"><input type="checkbox" id="MS_check" onchange="drug_edit_parameter(this.value);" >Change model</div>
-  <div class="button_delete" onclick="drug_delete();">Devare row</div>
+  <div class="button_delete" onclick="drug_delete();">Delete row</div>
  </div>
  <div class="pop_up" id="model_setting"></div>
  <div class="pop_up" id="dose_pop_up">
@@ -1631,7 +1631,7 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
   <span class="button" onclick="dose_input('.')">.</span>
   <span class="button" id="dose_done_button" onclick="dose_done();">ok</span>
 <br>
-  <div class="button_delete" onclick="dose_delete();" id="dose_delete_button">Devare entry</div>
+  <div class="button_delete" onclick="dose_delete();" id="dose_delete_button">Delete entry</div>
  </div>
 </div>
 
