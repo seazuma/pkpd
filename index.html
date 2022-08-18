@@ -131,7 +131,7 @@ function give_model(agent_name, patient){
    CL = 79 * Math.pow(patient.TBW/70,0.75) / 60; /* convert L/h to L/min */
    Q2 = 97 * Math.pow(patient.TBW/70,0.75) / 60;
    Q3 = 60 * Math.pow(patient.TBW/70,0.75) / 60;
-   model.set_from_VQ(V1,V2,V3,CL,Q2,Q3,0.22);
+   model.set_from_VQ(V1,V2,V3,CL,Q2,Q3,0);
    return model;
 
   case "DEX":  // Hannivoort, 2015, doi.org/10.1097/ALN.0000000000000740
@@ -1671,7 +1671,7 @@ Click the yellow bar between them to register dose information.
 Model:
 P .. Marsh, 1992 (using TBW)
 RMZ .. Masui, 2022 (using age,sex,height,TBW,ASA)
-K [10mg/mL] .. Kamp, 2020 (using TBW)
+K [10mg/mL] .. Kamp, 2020 (using TBW) (ke unavailable)
 DEX .. Hannivoort, 2015 (using age,sex,height,TBW)
 F [0.05mg/mL] .. Shafer, 1990 (using TBW)
 RF [0.1mg/mL] .. Minto, 1997 (using age,sex,height,TBW)
