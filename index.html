@@ -12,7 +12,6 @@ function d(x){return document.getElementById(x);}
 
 var H = 280, W = 750, MARGIN_L = 100, MARGIN = 30;
 var row_H = 30;
-var H_2 = H;
 var cAX1 = "#666666", cAX2 = "#aaaaaa"; // axis color
 var cCH = "#333333"; // char color
 var cBG = "#eeffff"; // bg-color
@@ -24,6 +23,7 @@ var CompLineWidth = 80;
 
 var Date_now = new Date();
 var Scale = {
+ is_moving: false,
  t_scale_300: 60, // time[min] per 300 px
  t_scale: 0.2, // time[min] per px
  t1: Date_now.getHours()*60, // time at origin
@@ -35,6 +35,7 @@ var Scale = {
    this.x_list.push(x);
  }},
  update : function(t1, t_300){
+  this.is_moving = false;
   this.t1 = t1;
   this.t_scale_300 = t_300;
   this.t_scale = t_300/300;
@@ -88,7 +89,7 @@ var AgentInfoList = {};
 AgentInfoList["P"] = new AgentInfo("Propofol","mg","mg/h", 10,1000, "blue");
 AgentInfoList["RMZ"] = new AgentInfo("Remimazolam","mg","mg/h", 1,1000, "purple");
 AgentInfoList["K"] = new AgentInfo("Ketamine","mL","mL/h", 10,1000, "green");
-AgentInfoList["DEX"] = new AgentInfo("Dexmedetomidine","mL","mL/h", 4, 1, "gray");
+AgentInfoList["DEX"] = new AgentInfo("Dexmedetomidine","mL","mL/h", 0.004, 1, "gray");
 AgentInfoList["F"] = new AgentInfo("Fentanyl","mL","mL/h", 0.05, 1, "red");
 AgentInfoList["RF"] =  new AgentInfo("Remifentanil","mL","mL/h", 0.1,1, "#888833");
 AgentInfoList["Rb"] =  new AgentInfo("Rocuronium","mg","mg/h", 10,500, "black");
@@ -708,50 +709,92 @@ function canvas_ready(){
  canvas_1.height = H;
  canvas_1_cursor.width = W;
  canvas_2.width = W;
- canvas_2.height = H_2;
+ canvas_2.height = H;
  canvas_2_cursor.width = W;
- canvas_2_cursor.height = H_2;
- if(canvas_1_cursor.addEventListener) {
-  canvas_1_cursor.addEventListener('click', canvas1_click, false);
-  canvas_1_cursor.addEventListener('mousemove', canvas1_move, false);
-  canvas_1_cursor.addEventListener('mouseout', canvas1_out, false);
-  canvas_1_cursor.addEventListener('touchmove', canvas1_t_move, false);
-  canvas_1_cursor.addEventListener('touchend', canvas1_t_end, false);
-/*
-  canvas_2_cursor.addEventListener('click', canvas4_click, false);
-  canvas_2_cursor.addEventListener('mousemove', canvas4_move, false);
-  canvas_2_cursor.addEventListener('mouseout', canvas4_out, false);
-  canvas_2_cursor.addEventListener('touchmove', canvas4_t_move, false);
-  canvas_2_cursor.addEventListener('touchend', canvas4_t_end, false);
-*/
- }
- else if(canvas_1.attachEvent) { 
-  canvas_1_cursor.attachEvent('click', canvas1_click, false);
-  canvas_1_cursor.attachEvent('mousemove', canvas1_move, false);
-  canvas_1_cursor.attachEvent('mouseout', canvas1_out, false);
-  canvas_1_cursor.attachEvent('touchmove', canvas1_t_move, false);
-  canvas_1_cursor.attachEvent('touchend', canvas1_t_end, false);
- }
+ canvas_2_cursor.height = H;
+
+ canvas_1_cursor.onclick = function(e){
+  var MouseRect = e.target.getBoundingClientRect();
+  var x = e.clientX - MouseRect.left;
+  var y = e.clientY - MouseRect.top;
+  canvas1_cross( x,y, true );
+ };
+ canvas_1_cursor.onmousedown = function(e) {
+  Scale.is_moving = true;
+  Scale.moving_from = e.pageX;
+ };
+ canvas_1_cursor.onmousemove = function(e) {
+  if(Scale.is_moving){
+   draw_moving_x_axis(ctx_1_cursor, e.pageX - Scale.moving_from);
+  } else {
+   var MouseRect = e.target.getBoundingClientRect();
+   var x = e.clientX - MouseRect.left;
+   var y = e.clientY - MouseRect.top;
+   canvas1_cross( x,y, false );
+ }};
+ canvas_1_cursor.onmouseup = function(e) { if(Scale.is_moving){
+   ctx_1_cursor.clearRect(0, 0, W, H);
+   update_x_axis(Scale.t1 - (e.pageX - Scale.moving_from)*Scale.t_scale, Scale.t_scale_300);
+   Scale.is_moving = false;
+   delete(Scale.moving_from);
+ }};
+ canvas_1_cursor.onmouseout = function() {
+  if(Scale.is_moving){
+   Scale.is_moving = false;
+   delete(Scale.moving_from);
+  } else {
+   ctx_1_cursor.clearRect(0, 0, W, canvas_1_cursor.height);
+   ctx_2_cursor.clearRect(0, 0, W, H);
+   Canvas1CrossFix = false;
+ }};
+ canvas_1_cursor.ontouchstart = function(e){
+  Scale.is_moving = true;
+  Scale.moving_from = e.pageX;
+ };
+ canvas_1_cursor.ontouchmove = function(e) {
+  if(Scale.is_moving){
+   draw_moving_x_axis(ctx_1_cursor, e.pageX - Scale.moving_from);
+// e.changedTouches[0].pageX ?
+  } else {
+   var MouseRect = e.target.getBoundingClientRect();
+   var x = e.clientX - MouseRect.left;
+   var y = e.clientY - MouseRect.top;
+   canvas1_cross( x,y, false );
+ }};
+ canvas_1_cursor.ontouchend = function(e){
+  if(Scale.is_moving){
+   ctx_1_cursor.clearRect(0, 0, W, H);
+   update_x_axis(Scale.t1 - (e.pageX - shiftX)*Scale.t_scale, Scale.t_scale_300);
+   Scale.is_moving = false;
+   delete(Scale.moving_from);
+  } else {
+   var MouseRect = e.target.getBoundingClientRect();
+   var x = e.changedTouches[0].pageX - MouseRect.left;
+   var y = e.changedTouches[0].pageY - MouseRect.top;
+   canvas1_cross( x,y, true );
+ }};
+
  ctx_1 = canvas_1.getContext('2d');
  ctx_1_cursor = canvas_1_cursor.getContext('2d');
  ctx_2 = canvas_2.getContext('2d');
  ctx_2_cursor = canvas_2_cursor.getContext('2d');
- draw_x_axis(ctx_1, Scale.t1, Scale.t_scale_300);
- draw_x_axis(ctx_2, Scale.t1, Scale.t_scale_300);
+
+ canvas_2_cursor.ondragstart = function(){ return false; };
+ update_x_axis(Scale.t1, Scale.t_scale_300);
  document.getElementById("drug_row_container").style.top = H + "px";
- document.getElementById("area2").style.height = (H_2+CompLineWidth) + "px";
- document.getElementById("comp_2").style.height = H_2-MARGIN-Compart.MARGIN_top + "px"
- document.getElementById("comp_1").style.height = H_2-MARGIN-Compart.MARGIN_top + "px";
- document.getElementById("comp_3").style.height = H_2-MARGIN-Compart.MARGIN_top + "px";
- document.getElementById("compline_10").style.top = H_2-MARGIN + "px";
+ document.getElementById("area2").style.height = (H+CompLineWidth) + "px";
+ document.getElementById("comp_2").style.height = H-MARGIN-Compart.MARGIN_top + "px"
+ document.getElementById("comp_1").style.height = H-MARGIN-Compart.MARGIN_top + "px";
+ document.getElementById("comp_3").style.height = H-MARGIN-Compart.MARGIN_top + "px";
+ document.getElementById("compline_10").style.top = H-MARGIN + "px";
  document.getElementById("compline_12").style.width = CompLineWidth + "px";
  document.getElementById("compline_13").style.width = CompLineWidth + "px";
  document.getElementById("compline_10").style.height = CompLineWidth + "px";
- document.getElementById("compline_info_10").style.top = H_2 + "px";
+ document.getElementById("compline_info_10").style.top = H + "px";
  document.getElementById("compline_info_10").style.width = CompLineWidth + "px";
  document.getElementById("compline_info_in").style.top = "-15px";
  document.getElementById("compline_info_in").style.width = CompLineWidth + "px";
- document.getElementById("comp_out").style.top = H_2-MARGIN + CompLineWidth + "px";
+ document.getElementById("comp_out").style.top = H-MARGIN + CompLineWidth + "px";
  document.getElementById("comp_out").style.width = CompLineWidth + "px";
 // delete childnodes in case user has downloaded loaded HTML 
  var div = document.getElementById("drug_row_container");
@@ -786,24 +829,36 @@ function canvas_ready(){
  create_new_drug_row();
 }
 
-function draw_x_axis(ctx, t1, t_scale_300){
+function draw_moving_x_axis(ctx, dx){
+ ctx.clearRect(0, 0, W, H);
+ ctx.font = "red";
+ var x;
+ for(t=Scale.t1; t<Scale.t2; t+=Scale.t_scale_300/2){ //draw v-line
+  ctx.beginPath();
+  ctx.moveTo( t2x(t)+dx , 0);
+  ctx.lineTo( t2x(t)+dx , H-MARGIN);
+  ctx.stroke();
+  ctx.fillText( min2hm(t), t2x(t)+dx, H-MARGIN/2);
+}}
+function update_x_axis(t1, t_scale_300){
  Scale.update(t1, t_scale_300);
  iv_list_update();
+ update_graph();
+}
+function draw_x_axis(ctx, t1, t_scale_300){
  ctx.font = ctx_font;
- ctx.fillStyle = cBG;
- ctx.fillRect(0, 0, W, H);
  ctx.beginPath(); ctx.moveTo(0, H-MARGIN); ctx.lineTo(W, H-MARGIN); ctx.strokeStyle = cAX1; ctx.stroke();
  ctx.beginPath(); ctx.moveTo(MARGIN_L, 0); ctx.lineTo(MARGIN_L, H-MARGIN); ctx.strokeStyle = cAX1; ctx.stroke();
  ctx.fillStyle = cCH;
  ctx.fillText( "ng/mL", MARGIN_L-50, 15);
  ctx.strokeStyle = cAX2;
- var t;
- for(t=t1; t<Scale.t2; t+=t_scale_300/2){ //draw v-line
+ var x;
+ for(x=0; x<W; x+=150){ //draw v-line
   ctx.beginPath();
-  ctx.moveTo( t2x(t), 0);
-  ctx.lineTo( t2x(t), H-MARGIN);
+  ctx.moveTo( MARGIN_L+x, 0);
+  ctx.lineTo( MARGIN_L+x, H-MARGIN);
   ctx.stroke();
-  ctx.fillText( min2hm(t), t2x(t), H-MARGIN/2);
+  ctx.fillText( min2hm(t1+x*t_scale_300/300), MARGIN_L+x, H-MARGIN/2);
  }
  var y;
  for(y=0; y<H-MARGIN; y+=50){ //draw v-line
@@ -813,7 +868,6 @@ function draw_x_axis(ctx, t1, t_scale_300){
   ctx.stroke();
   ctx.fillText( y/50, MARGIN_L-15, H-MARGIN - y);
 }}
-
 function iv_list_update(){
  var div_list = document.getElementById("drug_row_container").childNodes;
  var ri;
@@ -836,7 +890,11 @@ function adjust_height(){
 function update_graph(){
  Canvas1CrossFix = false;
  ctx_1.clearRect(0, 0, W, H);
- ctx_2.clearRect(0, 0, W, H_2);
+ ctx_2.clearRect(0, 0, W, H);
+ ctx_1.fillStyle = cBG;
+ ctx_1.fillRect(0, 0, W, H);
+ ctx_2.fillStyle = cBG;
+ ctx_2.fillRect(0, 0, W, H);
  draw_x_axis(ctx_1, Scale.t1, Scale.t_scale_300);
  draw_x_axis(ctx_2, Scale.t1, Scale.t_scale_300);
  var ai, aN = Agent_list.length;
@@ -941,7 +999,7 @@ function scale_short(){
  if(8<Scale.t_scale_300 && Scale.t_scale_300<16) Scale.t_scale_300 = 16;
  if(8*60<Scale.t_scale_300 && Scale.t_scale_300<16*60) Scale.t_scale_300 = 16*60;
  Scale.t1 = Math.floor(Scale.t1*2/Scale.t_scale_300)*Scale.t_scale_300/2;
- update_graph();
+ update_x_axis();
 }
 function scale_long(){
  if(Scale.t_scale_300 > t_MAX/4)return;
@@ -949,17 +1007,17 @@ function scale_long(){
  if(30<Scale.t_scale_300 && Scale.t_scale_300<60) Scale.t_scale_300 = 30;
  if(24*60<Scale.t_scale_300 && Scale.t_scale_300<48*60) Scale.t_scale_300 = 24*60;
  Scale.t1 = Math.floor(Scale.t1*2/Scale.t_scale_300)*Scale.t_scale_300/2;
- update_graph();
+ update_x_axis();
 }
 function scale_prev(){
  if(Scale.t1 < t_MIN/2)return;
- Scale.t1 -= Scale.t_scale_300;
- update_graph();
+ Scale.t1 -= Scale.t_scale_300/2;
+ update_x_axis();
 }
 function scale_next(){
  if(Scale.t1 > t_MAX/2)return;
- Scale.t1 += Scale.t_scale_300;
- update_graph();
+ Scale.t1 += Scale.t_scale_300/2;
+ update_x_axis();
 }
 
 /* cursor */
@@ -968,7 +1026,7 @@ var Canvas1CrossFix = false;
 
 function canvas1_delete(){
  ctx_1_cursor.clearRect(0, 0, W, canvas_1_cursor.height);
- ctx_2_cursor.clearRect(0, 0, W, H_2);
+ ctx_2_cursor.clearRect(0, 0, W, H);
  Canvas1CrossFix = false;
 }
 function canvas1_cross( x,y,b ){
@@ -986,38 +1044,9 @@ function canvas1_cross( x,y,b ){
  ctx_1_cursor.beginPath(); ctx_1_cursor.moveTo(0, y); ctx_1_cursor.lineTo(canvas_1_cursor.width, y); ctx_1_cursor.stroke();
  ctx_1_cursor.fillText( min2hm(x2t(x)), x+1, H-MARGIN);
  ctx_1_cursor.fillText( myPrecision((H-MARGIN-y)/50), MARGIN_L-15, y-1);
- ctx_2_cursor.clearRect(0, 0, W, H_2);
- ctx_2_cursor.beginPath(); ctx_2_cursor.moveTo(x, 0); ctx_2_cursor.lineTo(x, H_2); ctx_2_cursor.stroke();
+ ctx_2_cursor.clearRect(0, 0, W, H);
+ ctx_2_cursor.beginPath(); ctx_2_cursor.moveTo(x, 0); ctx_2_cursor.lineTo(x, H); ctx_2_cursor.stroke();
  disp_compart_info(x);
-}
-
-function canvas1_click(e){
- var MouseRect = e.target.getBoundingClientRect();
- var x = e.clientX - MouseRect.left;
- var y = e.clientY - MouseRect.top;
- canvas1_cross( x,y, true );
-}
-function canvas1_move(e){
- var MouseRect = e.target.getBoundingClientRect();
- var x = e.clientX - MouseRect.left;
- var y = e.clientY - MouseRect.top;
- canvas1_cross( x,y, false );
-}
-function canvas1_out(e){
-}
-function canvas1_t_move(e){
- e.preventDefault();
- var MouseRect = e.target.getBoundingClientRect(); // DIV = e.currentTarget;
- var x = e.changedTouches[0].pageX - MouseRect.left;
- var y = e.changedTouches[0].pageY - MouseRect.top;
- canvas1_cross( x,y, false );
-}
-function canvas1_t_end(e){
- e.preventDefault();
- var MouseRect = e.target.getBoundingClientRect();
- var x = e.changedTouches[0].pageX - MouseRect.left;
- var y = e.changedTouches[0].pageY - MouseRect.top;
- canvas1_cross( x,y, true );
 }
 
 /* cursor in dose area */
@@ -1052,8 +1081,8 @@ function cursor_to(x){
  ctx_1_cursor.clearRect(0, 0, W, canvas_1_cursor.height);
  ctx_1_cursor.beginPath(); ctx_1_cursor.moveTo(x, 0); ctx_1_cursor.lineTo(x, canvas_1_cursor.height); ctx_1_cursor.stroke();
  ctx_1_cursor.fillText( min2hm(x2t(x)), x+1, H);
- ctx_2_cursor.clearRect(0, 0, W, H_2);
- ctx_2_cursor.beginPath(); ctx_2_cursor.moveTo(x, 0); ctx_2_cursor.lineTo(x, H_2); ctx_2_cursor.stroke();
+ ctx_2_cursor.clearRect(0, 0, W, H);
+ ctx_2_cursor.beginPath(); ctx_2_cursor.moveTo(x, 0); ctx_2_cursor.lineTo(x, H); ctx_2_cursor.stroke();
  disp_compart_info(x);
 }
 function cursor_delete() {
@@ -1645,8 +1674,8 @@ function disp_compart(model){
  document.getElementById("compline_12").style.height = L12 + "px";
  document.getElementById("compline_13").style.height = L13 + "px";
  document.getElementById("compline_10").style.width = L10 + "px";
- document.getElementById("compline_12").style.top = H_2-MARGIN-L12 + "px";
- document.getElementById("compline_13").style.top = H_2-MARGIN-L13 + "px";
+ document.getElementById("compline_12").style.top = H-MARGIN-L12 + "px";
+ document.getElementById("compline_13").style.top = H-MARGIN-L13 + "px";
  var m_left = MARGIN_L;
  document.getElementById("comp_2").style.left = m_left + "px";
  document.getElementById("comp_1").style.left = m_left + L2 + CompLineWidth + "px";
@@ -1695,9 +1724,9 @@ function disp_compart_info(x0){
  document.getElementById("comp_inner_1").style.height = C1h + "px";
  document.getElementById("comp_inner_2").style.height = C2h + "px";
  document.getElementById("comp_inner_3").style.height = C3h + "px";
- document.getElementById("comp_inner_1").style.top = H_2-MARGIN-Compart.MARGIN_top-C1h + "px";
- document.getElementById("comp_inner_2").style.top = H_2-MARGIN-Compart.MARGIN_top-C2h + "px";
- document.getElementById("comp_inner_3").style.top = H_2-MARGIN-Compart.MARGIN_top-C3h + "px";
+ document.getElementById("comp_inner_1").style.top = H-MARGIN-Compart.MARGIN_top-C1h + "px";
+ document.getElementById("comp_inner_2").style.top = H-MARGIN-Compart.MARGIN_top-C2h + "px";
+ document.getElementById("comp_inner_3").style.top = H-MARGIN-Compart.MARGIN_top-C3h + "px";
  var flow12 = model.Q2 * (Compart.C1[x] - Compart.C2[x]) * 60;
  var flow13 = model.Q3 * (Compart.C1[x] - Compart.C3[x]) * 60;
  var flow10 = model.CL * Compart.C1[x] * 60;
@@ -1714,6 +1743,11 @@ function disp_compart_info(x0){
 
 </script>
 <style>
+html{
+ -ms-touch-action: manipulation;
+ tpicj^actopm: manipulation;
+}
+
 canvas{ position:absolute;}
 input{
  border: solid 2px #666666;
