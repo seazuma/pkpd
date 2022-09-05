@@ -1,6 +1,11 @@
 ﻿<!DOCTYPE html>
 <html><head>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta name="viewport" content="width=750,maximum-scale=10">
+<!-- 
+prevent zoom at input.focus() for touch device
+https://zenn.dev/rhirayamaaan/articles/f0209ad6574ed4
+-->
 <title>pkpd</title>
 <script>
 // for debug
@@ -18,6 +23,7 @@ var row_H = 30;
 var cAX1 = "#666666", cAX2 = "#aaaaaa"; // axis color
 var cCH = "#333333"; // char color
 var cBG = "#eeffff"; // bg-color
+var cCu = "#000000"; // cursor color
 var ctx_font_size = 12;
 var ctx_font = ctx_font_size + "px serif";
 
@@ -168,6 +174,17 @@ var model_P_E2018 = function(patient){ // Eleveld 2018 (ignore terms of maturati
  ke = theta_pd[2] * Math.pow(patient.TBW/70,-0.25);
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
 };
+var model_P_A2005 = function(patient){ // Absalom,2005, Paedfusor
+ if(patient.age > 16){return model_from_VQ(0,0,0,0,0,0,0);} // this model not applicable
+ var k10 = 0.1527*Math.pow(patient.TBW,-0.3);
+ var V1 = 0.4584*patient.TBW;
+ if(patient.age == 13){ V1 = 0.4000*patient.TBW; k10 = 0.0678;}
+ else if(patient.age == 14){ V1 = 0.342*patient.TBW; k10 = 0.0792; }
+ else if(patient.age == 15){ V1 = 0.284*patient.TBW; k10 = 0.0954; }
+ else if(patient.age == 16){ V1 = 0.22857*patient.TBW; k10 = 0.119; }
+ return model_from_k(k10, 0.114, 0.0419, 0.055, 0.0033, 0.26, V1);
+}
+
 var model_P_M1991 = function(patient){ // Marsh,1991 & Diprifusor
  return model_from_k(0.119, 0.112, 0.0419, 0.055, 0.0033, 0.260, 0.228*patient.TBW);
 }
@@ -265,16 +282,16 @@ var model_RF_M1997 = function(patient){ // Minto,1997
 var model_Rb_W1991 = function(patient){ // Wierda,1991
  return model_from_k(0.1,0.21,0.028,0.13,0.01, 0 ,0.045*patient.TBW); 
 }
-var model_Vb_R1987 = function(patient){ // Rupp,1987
- if(patient.age<64){
-  return model_from_k(0.1,0.1436,0.0344,0.1102,0.0144, 0.169 ,0.052*patient.TBW);
- } else{
-  return model_from_k(0.0389,0.4368,0.107,0.0787,0.0039, 0.5923 ,0.029*patient.TBW);
- }
+var model_Vb_R1987_y = function(patient){ // Rupp,1987,younger
+ return model_from_k(0.1,0.1436,0.0344,0.1102,0.0144, 0.169 ,0.052*patient.TBW);
+}
+var model_Vb_R1987_o = function(patient){ // Rupp,1987,younger
+ return model_from_k(0.0389,0.4368,0.107,0.0787,0.0039, 0.5923 ,0.029*patient.TBW);
 }
 
 AgentInfoList["P"].preset_model_list = [
  {model_g: model_P_E2018, label: "Eleveld,2018"},
+ {model_g: model_P_A2005, label: "Absalom,2005"},
  {model_g: model_P_M1991, label: "Marsh,1991"}
 ];
 AgentInfoList["RMZ"].preset_model_list = [
@@ -301,7 +318,8 @@ AgentInfoList["Rb"].preset_model_list = [
  {model_g: model_Rb_W1991, label: "Wierda,1991"}
 ];
 AgentInfoList["Vb"].preset_model_list = [
- {model_g: model_Vb_R1987, label: "Rupp,1987"}
+ {model_g: model_Vb_R1987_y, label: "Rupp,1987,younger"},
+ {model_g: model_Vb_R1987_o, label: "Rupp,1987,older"}
 ];
 
 /* patient */
@@ -346,7 +364,7 @@ function load_patient(){ // eventually check validity
 
 function appear(x){document.getElementById(x).style.display = "block"; }
 function disappear(x){document.getElementById(x).style.display = "none"; }
-function appear_disappear(x){ document.getElementById(x).style.display =  document.getElementById("area"+x).style.display=="none"?"block":"none";}
+function appear_disappear(x){ document.getElementById(x).style.display =  document.getElementById(x).style.display != "block"?"block":"none";}
 function setClass(x,y){ x.setAttribute("class",y);x.setAttribute("className",y); x.className=y;}
 function myPrecision(x){// my display style
  return isNaN(x)? "":x<-0.0001? "-"+myPrecision(-x): x>=100? x.toFixed(0):x>=10? x.toFixed(1):x>=1? x.toFixed(2):x<0.0001? "0":x.toPrecision(2);
@@ -368,7 +386,6 @@ function ready(){ // onload function
  load_patient();
  canvas_ready();
  drug_list_ready();
- no_zoom();
  compart_ready();
 }
 
@@ -535,11 +552,10 @@ Row.prototype.change_label = function(new_label){
  this.label = new_label;
  this.register(Setting.temp_label, this.PU_1_div);
 }
-Row.prototype.add_data = function(time,dose,model,div){
+Row.prototype.add_data = function(time, dose, model, div){
  if(dose != null){
   this.entry_at[time] = dose;
-  var idx = insertValue2(time, this.entry_list);
-  return idx;
+  insertValue2(time, this.entry_list);
  }
  if(model){
   this.labelinfo.model_at[time] = model;
@@ -571,9 +587,8 @@ Row.prototype.update_value = function(new_unit, new_mgmL){
  for(t in this.div_at){
   var div = this.div_at[t];
   if(this.entry_at[t]!==undefined){
-   div.innerHTML = ( UnitInfoList[this.unit].is_infusion && this.entry_at[t]==0? "/":
-    myPrecision(this.entry_at[t]) + (UnitInfoList[this.unit].is_infusion && this.entry_at[t]?"-":"")
-    ) + (this.labelinfo.model_at[t]?"#":"");  
+   div.innerHTML = UnitInfoList[this.unit].is_infusion && this.entry_at[t]==0? "/":
+    myPrecision(this.entry_at[t]) + (UnitInfoList[this.unit].is_infusion && this.entry_at[t]?"-":"");
  }}
 };
 
@@ -615,7 +630,7 @@ Solution.prototype.calc_at = function(t){
  var C3 = (this.equibs[2] + model.c30*term_0 + model.c31*term_1 + model.c32*term_2) / model.V3;
  return [Ce, C1, C2, C3, this.infusion_rate, this.total + this.infusion_rate * (t - this.time)];
 };
-var solution_zero = new Solution(t_MIN, [0,0,0], [0,0,0,0], [], null,0);
+var solution_zero = new Solution(t_MIN, [0,0,0], [0,0,0,0], [], null, 0);
 
 var Solution_TCI = function(wait_dt, solution_wait, time, equibs, coeffs, TCI_model, model, total){
  this.wait_dt = wait_dt;
@@ -627,30 +642,30 @@ var Solution_TCI = function(wait_dt, solution_wait, time, equibs, coeffs, TCI_mo
  this.model = model;
  this.total = total;
 };
-function give_solution_TCI(t, C_list, TCI, TCI_model, model){
+function give_solution_TCI(t, C_list, target, TCI_model, model){
  var wait_dt = 0;
  var TCI_solution_wait = give_solution(t, C_list, 0, TCI_model);
  var solution_wait = give_solution(t, C_list, 0, model);
- if(C_list[1] > TCI){
-  if( TCI_solution_wait.calc_at(Scale.t2)[1] > TCI ){
+ if(C_list[1] > target){
+  if( TCI_solution_wait.calc_at(Scale.t2)[1] > target ){
    return solution_wait;
   }
   var t_left = 0, t_right = Math.log(1/2)/model.eigen[2];
-  while( TCI_solution_wait.calc_at( t + t_right )[1] > TCI ){
+  while( TCI_solution_wait.calc_at( t + t_right )[1] > target ){
    t_left = t_right; t_right+=Math.log(1/2)/model.eigen[2];
   }
   while(t_right-t_left > Accuracy){
    var wait_dt = (t_left + t_right)/2;
-   if(TCI_solution_wait.calc_at( t + wait_dt )[1] > TCI){ t_left = wait_dt; }
+   if(TCI_solution_wait.calc_at( t + wait_dt )[1] > target){ t_left = wait_dt; }
    else{ t_right = wait_dt; } 
   }
   C_list = TCI_solution_wait.calc_at( t + wait_dt );
  }
- else if(C_list[1] < TCI){
-  C_list[1] = TCI; // bolus
-  C_list[5] += model.V1 * (TCI-C_list[1]);
+ else if(C_list[1] < target){
+  C_list[1] = target; // bolus
+  C_list[5] += model.V1 * (target-C_list[1]);
  }
- var TCI_equib_A1 = model.V1 * TCI; 
+ var TCI_equib_A1 = model.V1 * target; 
  var TCI_equib_A2 = TCI_equib_A1 * TCI_model.k12 / TCI_model.k21;
  var TCI_equib_A3 = TCI_equib_A1 * TCI_model.k13 / TCI_model.k31;
  var temp_coeff_2 = C_list[2] * TCI_model.V2 - TCI_equib_A2;
@@ -708,14 +723,17 @@ Row.prototype.calc_solutions_until = function(t2){
  var current_model = this.labelinfo.preset_model_g(Current_patient);
  for(pointer = 0; t_next = this.entry_list[pointer]; pointer++){
   if( t_next >= t2 ){ break; }
-  while( this.labelinfo.model_list[model_pointer+1] && this.labelinfo.model_list[model_pointer+1] <= t_next){
-   model_pointer++;
-   var t_model = this.labelinfo.model_list[model_pointer];
-   current_model = this.labelinfo.model_at[t_model];
-  }
   var C_next_list = [0,0,0,0,0,0]; // [Ce,C1,C2,C3(mg/L),infusion(mg/min),total(mg)]
   if(current_solution !== solution_zero){ 
    C_next_list = current_solution.calc_at(t_next);
+  }
+  while( this.labelinfo.model_list[model_pointer+1] && this.labelinfo.model_list[model_pointer+1] <= t_next){
+   model_pointer++;
+   var new_model = this.labelinfo.model_at[ this.labelinfo.model_list[model_pointer] ];
+   if(current.model.V1 < new_model.V1){ C_next_list[1] *= current.model.V1 / new_model.V1; }
+   if(current.model.V2 < new_model.V2){ C_next_list[2] *= current.model.V2 / new_model.V2; }
+   if(current.model.V3 < new_model.V3){ C_next_list[3] *= current.model.V3 / new_model.V3; }
+   current_model = this.labelinfo.model_at[t_model];
   }
   if( this.entry_at[t_next] != undefined ){
    current_val = this.entry_at[t_next] * mg_per_val;
@@ -749,7 +767,7 @@ LabelInfo.prototype.simulate = function(showCompart){
    var x_next = t_next > Scale.t2? Scale.x_list.length: t2x(t_next);
    for(; xi < x_next; xi++){ Compart.model[xi] = current_model; }
    if(xi >= Scale.x_list.length)break;
-   current.model = this.model_at[t_next];
+   current_model = this.model_at[t_next];
  }}
  for(xi=0;xi<xN;xi++){
   C1_list[xi] = 0;
@@ -857,7 +875,7 @@ function canvas_ready(){
    delete(Scale.moving_from);
   } else {
    ctx_1_cursor.clearRect(0, 0, W, H);
-   ctx_2_cursor.clearRect(0, 0, W, H);
+//   ctx_2_cursor.clearRect(0, 0, W, H);
    Canvas1CrossFix = false;
  }};
  if(canvas_1_cursor.addEventListener) {
@@ -882,8 +900,8 @@ function canvas_ready(){
 }
 function draw_moving_x_axis(ctx, dx){
  ctx.clearRect(0, 0, W, H);
- ctx.fillStyle = "red";
- ctx.strokeStyle = "red";
+ ctx.fillStyle = cCu;
+ ctx.strokeStyle = cCu;
  for(t=Scale.t1; t<Scale.t2; t+=Scale.t_scale_300/2){ //draw v-line
   ctx.beginPath();
   ctx.moveTo( t2x(t)+dx , 0);
@@ -894,10 +912,11 @@ function draw_moving_x_axis(ctx, dx){
  var xi, xN = Scale.x_list.length;
  var x_list = new Array(xN);
  var y_list = new Array(xN);
- for(xi=0;xi<xN;xi++){
-  x_list[xi] = Scale.x_list[xi] + dx;
-  y_list[xi] = parseInt(H-O_y-Compart.C1[xi]*1000*50/LabelInfoList[Compart.div.innerHTML].y_scale_50);
- }
+ if(Compart.div){
+  for(xi=0;xi<xN;xi++){
+   x_list[xi] = Scale.x_list[xi] + dx;
+   y_list[xi] = parseInt(H-O_y-Compart.C1[xi]*1000*50/LabelInfoList[Compart.div.innerHTML].y_scale_50);
+ }}
  ctx.strokeStyle = "#636363";
  plot_graph(ctx, x_list, y_list);
 }
@@ -1082,12 +1101,12 @@ function canvas1_cross( x,y,b ){
  if(Canvas1CrossFix){ return; }
  if (x<0 || x>W || y<0 || y>H){ canvas1_delete(); return;}
  Canvas1CrossFix = b;
- ctx_1_cursor.lineWidth = 1;
- ctx_1_cursor.strokeStyle = "red";
- ctx_1_cursor.fillStyle = "red";
+ ctx_1_cursor.lineWidth = 1; // or 0.5?
+ ctx_1_cursor.strokeStyle = cCu;
+ ctx_1_cursor.fillStyle = cCu;
  ctx_1_cursor.font = ctx_font;
  ctx_2_cursor.lineWidth = 1;
- ctx_2_cursor.strokeStyle = "red";
+ ctx_2_cursor.strokeStyle = cCu;
  ctx_1_cursor.clearRect(0, 0, W, H);
  ctx_1_cursor.beginPath(); ctx_1_cursor.moveTo(x, 0); ctx_1_cursor.lineTo(x, H); ctx_1_cursor.stroke();
  ctx_1_cursor.beginPath(); ctx_1_cursor.moveTo(0, y); ctx_1_cursor.lineTo(canvas_1_cursor.width, y); ctx_1_cursor.stroke();
@@ -1143,14 +1162,14 @@ function cursor_move_on_dose(div){
 function cursor_to(x){
  Canvas1CrossFix = false;
  ctx_1_cursor.lineWidth = 1;
- ctx_1_cursor.strokeStyle = "red";
- ctx_1_cursor.fillStyle = "red";
+ ctx_1_cursor.strokeStyle = cCu;
+ ctx_1_cursor.fillStyle = cCu;
  ctx_1_cursor.font = ctx_font;
  ctx_1_cursor.clearRect(0, 0, W, H);
  ctx_1_cursor.beginPath(); ctx_1_cursor.moveTo(x, 0); ctx_1_cursor.lineTo(x, H); ctx_1_cursor.stroke();
  ctx_1_cursor.fillText( min2hm(x2t(x)), x+1, H);
  ctx_2_cursor.lineWidth = 1;
- ctx_2_cursor.strokeStyle = "red";
+ ctx_2_cursor.strokeStyle = cCu;
  ctx_2_cursor.clearRect(0, 0, W, H);
  ctx_2_cursor.beginPath(); ctx_2_cursor.moveTo(x, 0); ctx_2_cursor.lineTo(x, H); ctx_2_cursor.stroke();
  disp_compart_info(x);
@@ -1158,7 +1177,7 @@ function cursor_to(x){
 function cursor_delete() {
  Canvas1CrossFix = false;
  ctx_1_cursor.clearRect(0, 0, W, H);
- ctx_2_cursor.clearRect(0, 0, W, H);
+// ctx_2_cursor.clearRect(0, 0, W, H);
 }
 
 function create_new_drug_row(){
@@ -1236,7 +1255,8 @@ var Setting = {
   this.active_unit_button_div= null;
   this.active_model_button_div= null;
   this.input_selected= false;
-  this.temp_model = null;
+  this.previous_model = null;
+  this.change_model = false;
  },
  select: function(button_div){
   this.active_drug_button_div = button_div;
@@ -1244,13 +1264,16 @@ var Setting = {
   this.temp_unit = button_div.innerHTML;
   if( button_div === Setting.row.PU_1_div ){
    this.temp_label = Setting.row.label;
+  } else {
+   this.temp_label = this.temp_agent;
+  }
+  if(LabelInfoList[this.temp_label]){
    this.temp_labelinfo = {}
    for(key in LabelInfoList[this.temp_label]){
     this.temp_labelinfo[key] = LabelInfoList[this.temp_label][key];
    }
   } else {
-   this.temp_label = this.temp_agent;
-   this.temp_labelinfo = new LabelInfo(this.temp_label);
+   this.temp_labelinfo = new LabelInfo(this.temp_agent);
   }
  }
 }
@@ -1285,6 +1308,7 @@ function add_drug(n, time){
  Setting.initialize(Row_list[n]);
  edit_mode(false);
  appear("PU_1_rowinfo");
+ document.getElementById("entry_time").value = min2hm(time);
  if(Setting.row.agent){
   appear("delete_row_button");
   Row_list[n].PU_1_div.innerHTML = Row_list[n].unit;
@@ -1296,7 +1320,6 @@ function add_drug(n, time){
   setClass(document.getElementById("dose_prev_button"), "button_invalid");
  }
  setClass(document.getElementById("dose_next_button"), "button_invalid");
- document.getElementById("entry_time").value = min2hm(time);
  manual_param_to(false);
 }
 function edit_drug(div){
@@ -1331,7 +1354,7 @@ function select_drug(button_div){
  document.getElementById("PU_3_color").value = Setting.temp_labelinfo.color;
  document.getElementById("PU_3_scale").value = Setting.temp_labelinfo.y_scale_50;
  document.getElementById("PU_3_mgmL").value = Setting.temp_labelinfo.mgmL;
-/* unit */
+/* select unit */
  var is_infusion = UnitInfoList[Setting.temp_unit].is_infusion;
  var unit_on = is_infusion? "select_infusion_unit": "select_bolus_unit";
  var unit_off = is_infusion? "select_bolus_unit" : "select_infusion_unit";
@@ -1340,11 +1363,24 @@ function select_drug(button_div){
  var j,unit_divlist = document.getElementById(unit_on).children;
  for(j=0; j<unit_divlist.length; j++){
   if(unit_divlist[j].children[1].innerHTML == Setting.temp_unit){
-   PU_change_unit(unit_divlist[j].children[1],false); break;
+   change_unit(unit_divlist[j].children[1],false); break;
   }
  }
- PU_change_val(null);
-/* model */
+ change_unit_val(null);
+/* check previous model */
+ document.getElementById("entry_preset").innerHTML = "Preset";
+ var ti,t_prev = hm2min(document.getElementById("entry_time").value)
+ var t_list = Setting.temp_labelinfo.model_list;
+ for(ti=t_list.length-1;ti>=0;ti--){
+  if(t_list[ti] > t_prev)continue;
+  var model = Setting.temp_labelinfo.model_at[t_list[ti]];
+  if(model){
+   document.getElementById("entry_preset").innerHTML = "Previous";
+   Setting.previous_model = model;
+   break;
+  }
+ }
+/* select preset */
  model_ready(document.getElementById("preset_model"), AgentInfoList[Setting.temp_agent].preset_model_list, "preset");
  model_ready(document.getElementById("TCI_model"), AgentInfoList[Setting.temp_agent].preset_model_list, "TCI");
  document.getElementById("dose").focus();
@@ -1360,13 +1396,13 @@ function model_ready(div, preset_model_list, mode){
  for(i=0; i<preset_model_list.length; i++){
   var divchild = document.createElement("div");
   divchild.innerHTML = preset_model_list[i].label;
-  divchild.setAttribute("onclick","PU_model_click(this);")
+  divchild.setAttribute("onclick","change_preset(this);")
   divchild.setAttribute("i",i);
   divchild.setAttribute("mode", mode);
   setClass(divchild, "button_wide");
   div.appendChild(divchild);
   if(Setting.temp_labelinfo.preset_model_g === preset_model_list[i].model_g){
-   PU_model_click(divchild);
+   change_preset(divchild);
 }}}
 
 function edit_mode(b){
@@ -1391,9 +1427,9 @@ function change_mgmL(input){
  var val = parseFloat(input.value);
  if(isNaN(val))return;
  input = Setting.active_unit_button_div.parentElement.children[0];
- PU_change_val(input);
+ change_unit_val(input);
 }
-function PU_change_val(input){
+function change_unit_val(input){
  if(!input){
   input = Setting.active_unit_button_div.parentElement.children[0];
   if(!input) return;
@@ -1416,7 +1452,7 @@ function PU_change_val(input){
    document.getElementById("dose").value = input_j.value;
   }
 }}
-function PU_change_unit(button_div, is_new_val){
+function change_unit(button_div, is_new_val){
  var button_div = button_div.parentElement.children[1];
  var unit = button_div.innerHTML;
  if(Setting.active_unit_button_div){ setClass(Setting.active_unit_button_div, "button_wide");}
@@ -1425,6 +1461,8 @@ function PU_change_unit(button_div, is_new_val){
  Setting.temp_unit = unit;
  document.getElementById("dose_unit").innerHTML = unit;
  Setting.active_drug_button_div.innerHTML = unit;
+ if(unit.indexOf("g/mL")!=-1){appear("TCI_model");}
+ else {disappear("TCI_model");}
  if(is_new_val){
   if(button_div.parentElement.children[0].value){
    document.getElementById("dose").value = button_div.parentElement.children[0].value;
@@ -1433,14 +1471,18 @@ function PU_change_unit(button_div, is_new_val){
  }
 }
 
-function PU_model_click(button_div){
+function change_preset(button_div){
  var mode = button_div.getAttribute("mode");
  if(mode == "preset"){
   Setting.temp_labelinfo.preset_model_g = AgentInfoList[Setting.temp_agent].preset_model_list[parseInt(button_div.getAttribute("i"))].model_g;
   if(Setting.active_model_button_div){ setClass(Setting.active_model_button_div, "button_wide");}
   setClass(button_div, "button_wide_selected");
   Setting.active_model_button_div = button_div;
-  if(Setting.temp_model){assign_param(Setting.temp_model);}
+  var i, itemlist = document.getElementById("PU_manual_model").children;
+  for(i=0;i<7;i++){
+   var div_i = itemlist[i];
+   setClass(div_i.children[1], div_i.children[0].value == Setting.temp_labelinfo.preset_model_g(Current_patient)[param_list[i]]? "button_wide_selected": "button_wide");
+  }
  }
  else if(mode == "TCI"){
   Setting.temp_labelinfo.TCI_model_g = AgentInfoList[Setting.temp_agent].preset_model_list[parseInt(button_div.getAttribute("i"))].model_g;
@@ -1461,15 +1503,17 @@ function dose_input(x){
  else if(x=="BS"){ document.getElementById("dose").value = document.getElementById("dose").value.slice( 0, -1 ); }
  else {document.getElementById("dose").value = document.getElementById("dose").value + x;}
  document.getElementById("dose").focus();
- PU_change_val(null);
+ change_unit_val(null);
 }
 function entry_time_c(dt){
  var time =  hm2min(document.getElementById("entry_time").value) + parseInt(dt);
- document.getElementById("pop_up_overwriting").style.display = (Setting.row.entry_at[time] && time!=Setting.edit_div.getAttribute("time") ) ? "inline" : "none";
+ document.getElementById("pop_up_overwriting").style.display
+ = (Setting.row.entry_at[time] == undefined || Setting.edit_div && time == Setting.edit_div.getAttribute("time") ) ? "none" : "inline";
  document.getElementById("entry_time").value = min2hm(time);
 }
 function dose_done(){
  if(!Setting.is_pop_up){return;} //prevent double action by onkeydown and onsubmit
+ if(!Setting.active_drug_button_div){return;} //no drug chosen
  var old_label = Setting.row.label;
 // var old_mgmL = Setting.row.labelinfo.mgmL 
  Setting.temp_label = document.getElementById("PU_3_label").value;
@@ -1521,23 +1565,23 @@ function dose_done(){
   DIV.setAttribute("onmouseover","cursor_move_on_dose(this);" );
   DIV.style.position = "absolute";
  }
- var model = null;
- if(Setting.temp_model){
-  var div = document.getElementById("PU_manual_model");
-  var i;
-  var parameters = [];
-  for(i=0;i<7;i++){ parameters.push( parseFloat(div.children[i].children[0].value) ); }
-  model = model_from_VQ(parameters[0],parameters[1],parameters[2],parameters[3],parameters[4],parameters[5],parameters[6]);
+ var changed_model = null;
+ if(Setting.change_model){
+  var i, itemlist = document.getElementById("PU_manual_model").children;
+  var params = [];
+  for(i=0;i<7;i++){ params.push( parseFloat(itemlist[i].children[0].value) ); }
+  changed_model = model_from_VQ(params[0],params[1],params[2],params[3],params[4],params[5],params[6]);
  }
- if( Setting.temp_model || !isNaN(dose)){
+ if(changed_model || !isNaN(dose)){
   var dose_disp = dose;
-  if( !isNaN(dose) && dose<1 && dose_disp.length > 3){ dose_disp = dose.toPrecision(1);}
-  var idx = Setting.row.add_data(time,(isNaN(dose)?null:dose),model);
-  Setting.row.div.insertBefore(DIV, Setting.row.div.children[1+idx] || null);
-  DIV.innerHTML = ( UnitInfoList[Setting.row.unit].is_infusion && dose==0? "/":
-   (isNaN(dose)?"":dose_disp) + (UnitInfoList[Setting.row.unit].is_infusion && dose?"-":"")
-   ) + (Setting.temp_model?"#":"");
+  if( !isNaN(dose) && dose<0.1 && dose_disp.length > 5){ dose_disp = dose.toPrecision(3);} // ?
+  Setting.row.add_data(time, !isNaN(dose)?dose:null, changed_model, DIV);
+  Setting.row.div.insertBefore(DIV, Setting.row.div.lastChild); // so that label_div preserved as lastChild
+  DIV.innerHTML = UnitInfoList[Setting.row.unit].is_infusion && dose==0? "/":
+   (isNaN(dose)?"":dose_disp) + (UnitInfoList[Setting.row.unit].is_infusion && dose?"-":"");
+  if(!DIV.innerHTML)DIV.innerHTML="c"; // only change model
   DIV.setAttribute("time", time);
+  DIV.style.color = changed_model?"red":"black"; // clarify entry with model change by red color
   DIV.style.left = parseInt( t2x(time) ) + "px";
  }
  dose_close();
@@ -1602,24 +1646,6 @@ function drug_delete(){
  update_graph();
 }
 
-function no_zoom(){
-}
-// Disable double-tap "zoom" in touch devices
-// https://stackoverflow.com/questions/10614481/disable-double-tap-zoom-option-in-browser-on-touch-devices
-/*
- var fi,formlist = document.forms;
- for(fi=0; fi<formlist.length; fi++){
-  var form = formlist[fi];
-  if(form.addEventListener){
-   form.addEventListener("touchend",function(e){e.preventDefault();});
-   var ci, childlist = form.children;
-   for(ci=0;ci<childlist.length;ci++){ 
-    var child = childlist[ci];
-    if(child.className=="button"){child.addEventListener("touchend",function(e){e.preventDefault();e.target.click();});}
-    else{child.addEventListener("touchend",function(e){e.preventDefault();e.target.focus();});}
-}}}}
-*/
-
 /* manual model edit */
 
 var param_list = ["V1","V2","V3","CL","Q2","Q3","ke"];
@@ -1627,42 +1653,45 @@ var param_list = ["V1","V2","V3","CL","Q2","Q3","ke"];
 function manual_param_to(b){
  setClass( document.getElementById("entry_manual"), b? "button_wide_selected": "button_wide")
  setClass( document.getElementById("entry_preset"), b? "button_wide": "button_wide_selected")
+ Setting.change_model = b;
  if(!b){
   disappear("PU_manual_model");
-  Setting.temp_model = null;
-  return;
- }
- appear("PU_manual_model");
- var model;
- var ti,t_prev = hm2min(document.getElementById("entry_time").value)
- var t_list = Setting.temp_labelinfo.model_list;
- for(ti=t_list.length-1;ti>=0;ti--){
-  if(t_list[ti] > t_prev)continue;
-  model = Setting.row.labelinfo.model_at[t_list[ti]];
-  if(model)break;
- }
- if(!model){
-  model = Setting.temp_labelinfo.preset_model_g(Current_patient);
- }
- Setting.temp_model = model;
- assign_param(model);
+ } else {
+  appear("PU_manual_model");
+  var i, itemlist = document.getElementById("PU_manual_model").children;
+  for(i=0;i<7;i++){
+   var div_i = itemlist[i];
+   if(Setting.previous_model){
+    div_i.children[0].value = Setting.previous_model[param_list[i]];
+    setClass(div_i.children[1], div_i.children[0].value == Setting.temp_labelinfo.preset_model_g(Current_patient)[param_list[i]]? "button_wide_selected": "button_wide");
+    setClass(div_i.children[2], "button_wide_selected");
+   } else {
+    div_i.children[0].value = Setting.temp_labelinfo.preset_model_g(Current_patient)[param_list[i]];
+    setClass(div_i.children[1], "button_wide_selected");
+    setClass(div_i.children[2], "none");
+}}}}
+
+function manual_param(input){
+ var div_i = input.parentElement;
+ var i = parseInt(div_i.getAttribute("i"));
+ setClass(div_i.children[1], input.value == Setting.temp_labelinfo.preset_model_g(Current_patient)[param_list[i]]? "button_wide_selected": "button_wide");
+ setClass(div_i.children[2], Setting.previous_model? (input.value == Setting.previous_model[param_list[i]]? "button_wide_selected": "button_wide"): "none");
 }
-function assign_param(model){
- var div = document.getElementById("PU_manual_model");
- var i;
- for(i=0;i<param_list.length;i++){
-  var div_i = div.children[i];
-  div_i.children[0].value = model[param_list[i]];
-  setClass(div_i.children[1], model[param_list[i]] == Setting.temp_labelinfo.preset_model_g(Current_patient)[param_list[i]]? "button_wide_selected": "button_wide");
- }
-}
-function manual_param(div, b){
+function preset_param(div){
  if( div.className == "button_wide_selected") return;
- setClass(div.parentElement.children[1], b? "button_wide": "button_wide_selected");
- if(!b){
-  var i = parseInt(div.parentElement.getAttribute("i"));
-  div.parentElement.children[0].value = Setting.labelinfo.preset_model_g(Current_patient)[param_list[i]]
- }
+ var div_i = div.parentElement;
+ var i = parseInt(div.parentElement.getAttribute("i"));
+ div_i.children[0].value = Setting.temp_labelinfo.preset_model_g(Current_patient)[param_list[i]];
+ setClass(div_i.children[1], "button_wide_selected");
+ setClass(div_i.children[2], Setting.previous_model? (div_i.children[0].value == Setting.previous_model[param_list[i]]? "button_wide_selected": "button_wide"): "none");
+}
+function previous_param(div){
+ if( div.className == "button_wide_selected") return;
+ var div_i = div.parentElement;
+ var i = parseInt(div.parentElement.getAttribute("i"));
+ div_i.children[0].value = Setting.previous_model[param_list[i]];
+ setClass(div_i.children[1], div_i.children[0].value == Setting.temp_labelinfo.preset_model_g(Current_patient)[param_list[i]]? "button_wide_selected": "button_wide");
+ setClass(div_i.children[2], "button_wide_selected");
 }
 
 /* compartment visualization */
@@ -1800,8 +1829,8 @@ function disp_compart_info(x0){
   + "Total " + myPrecision(Compart.total[x]*c) + unit;
  document.getElementById("comp_info_1").innerHTML = (Compart.C1[x]*model.V1*c).toPrecision(3) + unit + "/" + model.V1.toPrecision(3) + "L"
   + "<br><br><br>" + myPrecision_signed(dA1) + unit + "/h";
- document.getElementById("comp_info_2").innerHTML = (Compart.C2[x]*model.V2*c).toPrecision(3) + unit + "/" + model.V2.toPrecision(3) + "L";
- document.getElementById("comp_info_3").innerHTML = (Compart.C3[x]*model.V3*c).toPrecision(3) + unit + "/" + model.V3.toPrecision(3) + "L";
+ document.getElementById("comp_info_2").innerHTML = "<br>" + (Compart.C2[x]*model.V2*c).toPrecision(3) + unit + "/" + model.V2.toPrecision(3) + "L";
+ document.getElementById("comp_info_3").innerHTML = "<br>" + (Compart.C3[x]*model.V3*c).toPrecision(3) + unit + "/" + model.V3.toPrecision(3) + "L";
  document.getElementById("compline_info_12").innerHTML =  (flow12>=0?"←"+myPrecision(flow12):"→"+myPrecision(-flow12)) + unit + "/h";
  document.getElementById("compline_info_13").innerHTML =  (flow13>=0?"→"+myPrecision(flow13):"←"+myPrecision(-flow13)) + unit + "/h";
  document.getElementById("compline_info_10").innerHTML = "↓" + myPrecision(flow10) + unit + "/h";
@@ -1829,6 +1858,7 @@ input{
  background-color:#dddddd;
  top:-5px;
  left:650px;
+ white-space: nowrap;
 }
 
 .form, .form_minor{
@@ -1860,12 +1890,11 @@ input{
  width: 200px;
  padding: 10px;
 }
-
 #PU_1_agent_list{
  line-height:30px;
 }
 .item{
- margin-top:10px;
+ margin-top:8px;
 }
 
 .mild_label{
@@ -1883,8 +1912,6 @@ input{
  color:red;
 }
 
-#manual_param_check{ width:20px;}
-
 span .button_wide{
  display: inline-block;
 }
@@ -1898,7 +1925,6 @@ span .button_wide_selected{
  border: 3px outset;
  background-color:#cccccc;
 }
-
 .button_wide, .button_delete{
  cursor:pointer;
 }
@@ -1906,7 +1932,8 @@ span .button_wide_selected{
  background-color:#ff6666;
 }
 .button_wide_selected{
- background-color:#777777;
+ color: #ffffff;
+ background-color:#aaaaaa;
  border: 3px inset;
 }
 .button_wide:hover{
@@ -1914,6 +1941,9 @@ span .button_wide_selected{
 }
 .button_delete:hover{
  background-color:#ffffff;
+}
+.none{
+ display:none;
 }
 
 .button{
@@ -2022,6 +2052,10 @@ span .button_wide_selected{
 #compline_info_in{
  white-space: nowrap;
 }
+
+#usage, #model, #abbreviation{
+ display:none;
+}
 </style>
 </head>
 <body onload="ready();document.getElementById('age').focus();" onkeydown="if(event.keyCode==13&&Setting.is_pop_up){dose_done();}if(event.keyCode==27){dose_close();}"><!--enter,esc-->
@@ -2070,7 +2104,7 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 <hr>
   <form onsubmit="event.preventDefault();dose_done();return false;">
    Dose:
-   <input type="tel" id="dose" oninput="PU_change_val(null);">
+   <input type="tel" id="dose" oninput="change_unit_val(null);">
    <span id="dose_unit"></span>
 <br>
    <span class="button" onclick="dose_input(7)">7</span>
@@ -2097,15 +2131,15 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 <hr>
   Model:
   <span class="button_wide" id="entry_preset" onclick="manual_param_to(false);">Preset</span>
-  <span class="button_wide" id="entry_manual" onclick="manual_param_to(true);">Manual</span>
+  <span class="button_wide" id="entry_manual" onclick="manual_param_to(true);">Change</span>
   <div id="PU_manual_model">
-   <div class="item" i="0">V<sub>1</sub>=<input oninput="manual_param(this,true);"><span onclick="manual_param(this,false);" class="button_wide">Preset</span></div>
-   <div class="item" i="1">V<sub>2</sub>=<input oninput="manual_param(this,true);"><span onclick="manual_param(this,false);" class="button_wide">Preset</span></div>
-   <div class="item" i="2">V<sub>3</sub>=<input oninput="manual_param(this,true);"><span onclick="manual_param(this,false);" class="button_wide">Preset</span></div>
-   <div class="item" i="3">CL=<input oninput="manual_param(this,true);"><span onclick="manual_param(this,false);" class="button_wide">Preset</span></div>
-   <div class="item" i="4">Q<sub>2</sub>=<input oninput="manual_param(this,true);"><span onclick="manual_param(this,false);" class="button_wide">Preset</span></div>
-   <div class="item" i="5">Q<sub>3</sub>=<input oninput="manual_param(this,true);"><span onclick="manual_param(this,false);" class="button_wide">Preset</span></div>
-   <div class="item" i="6">k<sub>e</sub>=<input oninput="manual_param(this,true);"><span onclick="manual_param(this,false);" class="button_wide">Preset</span></div>
+   <div class="item" i="0">V1=<input onfocus="this.select();" oninput="manual_param(this);"><span onclick="preset_param(this);" class="button_wide">Preset</span><span onclick="previous_param(this,false);" class="button_wide">Previous</span></div>
+   <div class="item" i="1">V2=<input onfocus="this.select();" oninput="manual_param(this);"><span onclick="preset_param(this);" class="button_wide">Preset</span><span onclick="previous_param(this,false);" class="button_wide">Previous</span></div>
+   <div class="item" i="2">V3=<input onfocus="this.select();" oninput="manual_param(this);"><span onclick="preset_param(this);" class="button_wide">Preset</span><span onclick="previous_param(this,false);" class="button_wide">Previous</span></div>
+   <div class="item" i="3">CL=<input onfocus="this.select();" oninput="manual_param(this);"><span onclick="preset_param(this);" class="button_wide">Preset</span><span onclick="previous_param(this,false);" class="button_wide">Previous</span></div>
+   <div class="item" i="4">Q2=<input onfocus="this.select();" oninput="manual_param(this);"><span onclick="preset_param(this);" class="button_wide">Preset</span><span onclick="previous_param(this,false);" class="button_wide">Previous</span></div>
+   <div class="item" i="5">Q3=<input onfocus="this.select();" oninput="manual_param(this);"><span onclick="preset_param(this);" class="button_wide">Preset</span><span onclick="previous_param(this,false);" class="button_wide">Previous</span></div>
+   <div class="item" i="6">ke=<input onfocus="this.select();" oninput="manual_param(this);"><span onclick="preset_param(this);" class="button_wide">Preset</span><span onclick="previous_param(this,false);" class="button_wide">Previous</span></div>
   </div>
  </div>
 
@@ -2118,19 +2152,19 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 <hr>
   Unit:
   <div id="select_bolus_unit">
-   <div class="item"><input oninput="PU_change_val(this);"><span onclick="PU_change_unit(this,true);" class="button_wide">mg</span></div>
-   <div class="item"><input oninput="PU_change_val(this);"><span onclick="PU_change_unit(this,true);" class="button_wide">mcg</span></div>
-   <div class="item"><input oninput="PU_change_val(this);"><span onclick="PU_change_unit(this,true);" class="button_wide">mg/kg</span></div>
-   <div class="item"><input oninput="PU_change_val(this);"><span onclick="PU_change_unit(this,true);" class="button_wide">mL</span></div>
+   <div class="item"><input oninput="change_unit_val(this);"><span onclick="change_unit(this,true);" class="button_wide">mg</span></div>
+   <div class="item"><input oninput="change_unit_val(this);"><span onclick="change_unit(this,true);" class="button_wide">mcg</span></div>
+   <div class="item"><input oninput="change_unit_val(this);"><span onclick="change_unit(this,true);" class="button_wide">mg/kg</span></div>
+   <div class="item"><input oninput="change_unit_val(this);"><span onclick="change_unit(this,true);" class="button_wide">mL</span></div>
   </div>
   <div id="select_infusion_unit">
-   <div class="item"><input oninput="PU_change_val(this);"><span onclick="PU_change_unit(this,true);" class="button_wide">mg/h</span></div>
-   <div class="item"><input oninput="PU_change_val(this);"><span onclick="PU_change_unit(this,true);" class="button_wide">mg/kg/h</span></div>
-   <div class="item"><input oninput="PU_change_val(this);"><span onclick="PU_change_unit(this,true);" class="button_wide">mcg/kg/min</span></div>
-   <div class="item"><input oninput="PU_change_val(this);"><span onclick="PU_change_unit(this,true);" class="button_wide">mcg/kg/h</span></div>
-   <div class="item"><input oninput="PU_change_val(this);"><span onclick="PU_change_unit(this,true);" class="button_wide">mL/h</span></div>
-   <div class="item"><input oninput="PU_change_val(this);"><span onclick="PU_change_unit(this,true);" class="button_wide">mcg/mL</span>(TCI)</div>
-   <div class="item"><input oninput="PU_change_val(this);"><span onclick="PU_change_unit(this,true);" class="button_wide">ng/mL</span>(TCI)</div>
+   <div class="item"><input oninput="change_unit_val(this);"><span onclick="change_unit(this,true);" class="button_wide">mg/h</span></div>
+   <div class="item"><input oninput="change_unit_val(this);"><span onclick="change_unit(this,true);" class="button_wide">mg/kg/h</span></div>
+   <div class="item"><input oninput="change_unit_val(this);"><span onclick="change_unit(this,true);" class="button_wide">mcg/kg/min</span></div>
+   <div class="item"><input oninput="change_unit_val(this);"><span onclick="change_unit(this,true);" class="button_wide">mcg/kg/h</span></div>
+   <div class="item"><input oninput="change_unit_val(this);"><span onclick="change_unit(this,true);" class="button_wide">mL/h</span></div>
+   <div class="item"><input oninput="change_unit_val(this);"><span onclick="change_unit(this,true);" class="button_wide">mcg/mL</span>(TCI)</div>
+   <div class="item"><input oninput="change_unit_val(this);"><span onclick="change_unit(this,true);" class="button_wide">ng/mL</span>(TCI)</div>
   </div>
   <div id="TCI_model"></div>
 <hr>
@@ -2162,19 +2196,28 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
   <span class="x_scale_button" onclick="scale_prev();">&lt;</span><span class="x_scale_button" onclick="scale_next();">&gt;</span>
  </form>
 </div>
-
 <hr>
-
 <div>
+<a href="javascript:appear_disappear('usage');">▼Usage▼</a>
+<div id="usage">
+<ul><li>
 Click the yellow bar between them to register dose information.<br>
+</li><li>
 First canvas: concentration of central compartment (solid line) and effect site (filled area)<br>
+</li><li>
 Second canvas: visualization of central (red), rapid peripheral (blue), and slow peripheral compartment (green)<br>
+</li></ul>
+
+</div>
 <hr>
-Model:
+
+<a href="javascript:appear_disappear('model');">▼Model▼</a>
+<div id="model">
 <ul>
  <li>Propofol<ul>
   <li> Eleveld, 2018 (using age,sex,height,TBW) [PMID: 29661412] </li>
-  <li> Marsh, 1991 (using TBW) (used in Diprifusor&copy; [PMID: 9640110]) </li>
+  <li> Absalom, 2005 (using age,TBW) (age≦16 only) (Peadfusor) [PMID: 15941735] </li>
+  <li> Marsh, 1991 (using TBW) and applying ke=0.26 as in Diprifusor&copy; [PMID: 9640110]) </li>
  </ul></li>
  <li>Remimazolam<ul>
   <li> Masui, 2022 (using age,sex,height,TBW,ASA) [PMID: 35708787] </li>
@@ -2200,11 +2243,25 @@ Model:
   <li> Wierda, 1991 (using TBW) (ke unavailable) [PMID: 1829656] </li>
  </ul></li>
  <li>Vecuronium<ul>
-  <li> Rupp, 1987 (using age,TBW) (apply younger [30-57] model for age&lt;64 and elderly [70-84] model otherwise) [PMID: 2886080] </li>
+  <li> Rupp, 1987 (using,TBW) (younger [30-57] / older [70-84]) [PMID: 2886080] </li>
  </ul></li>
 </ul>
-
 <br>
+dA<sub>1</sub>/dt = <i>infusion</i>-CL*C<sub>1</sub>-Q<sub>2</sub>*(C<sub>1</sub>-C2)-Q<sub>3</sub>*(C<sub>1</sub>-C<sub>3</sub>) = <i>infusion</i>-(k<sub>10</sub>+k<sub>12</sub>+k<sub>13</sub>)*A<sub>1</sub>+k<sub>21</sub>*A<sub>2</sub>+k<sub>31</sub>*A<sub>3</sub><br>
+dA<sub>2</sub>/dt = Q<sub>2</sub>*(C<sub>1</sub>-C<sub>2</sub>) = k<sub>12</sub>*A<sub>1</sub>-k<sub>21</sub>*A<sub>2</sub><br>
+dA<sub>3</sub>/dt = Q<sub>3</sub>*(C<sub>1</sub>-C<sub>3</sub>) = k<sub>13</sub>*A<sub>1</sub>-k<sub>31</sub>*A<sub>3</sub><br>
+dC<sub>e</sub>/dt = k<sub>e</sub>*(C<sub>1</sub>-C<sub>e</sub>)<br>
+<br>
+A<sub>1</sub>,A<sub>2</sub>,A<sub>3</sub>: amount [mg] <br>
+C<sub>1</sub>,C<sub>2</sub>,C<sub>3</sub>,C<sub>e</sub>: concentration [mg/L] (C<sub>k</sub>=A<sub>k</sub>/V<sub>k</sub>)<br>
+V<sub>1</sub>,V<sub>2</sub>,V<sub>3</sub>: volume [L]<br>
+CL,Q<sub>2</sub>,Q<sub>3</sub>: clearance [L/min]<br>
+k<sub>10</sub>=CL/V<sub>1</sub>, k<sub>12</sub>=Q<sub>2</sub>/V<sub>1</sub>, k13=Q<sub>3</sub>/V<sub>1</sub>, k<sub>21</sub>=Q<sub>2</sub>/V<sub>2</sub>, k<sub>31</sub>=Q<sub>3</sub>/V3 [min]<br>
+
+</div>
+<hr>
+<a href="javascript:appear_disappear('abbreviation');">▼Abbreviation▼</a>
+<div id="abbreviation">
 TBW: total body weight<br>
 IBW: ideal body weight: (used by Masui)<br>
 　45.4+0.89*(height-152.4)+4.5 for male<br>
@@ -2219,26 +2276,10 @@ FFM<sub>j</sub>: fat free mass by Janmahasatian: (used by Kim)<br>
 FFM<sub>AS</sub>: fat free mass by Al Sallami et al.: (used by Eleveld, Morse)<br>
 　(0.88+(1-0.88)/(1+(age/13.4)<sup>-12.7</sup>))*FFM<sub>j</sub> for male<br>
 　(1.11+(1-1.11)/(1+(age/7.1)<sup>-1.1</sup>))*FFM<sub>j</sub> for female<br>
-
+</div>
 <hr>
-
-3-compartment model:<br>
-<br>
-dA<sub>1</sub>/dt = <i>infusion</i>-CL*C<sub>1</sub>-Q<sub>2</sub>*(C<sub>1</sub>-C2)-Q<sub>3</sub>*(C<sub>1</sub>-C<sub>3</sub>) = <i>infusion</i>-(k<sub>10</sub>+k<sub>12</sub>+k<sub>13</sub>)*A<sub>1</sub>+k<sub>21</sub>*A<sub>2</sub>+k<sub>31</sub>*A<sub>3</sub><br>
-dA<sub>2</sub>/dt = Q<sub>2</sub>*(C<sub>1</sub>-C<sub>2</sub>) = k<sub>12</sub>*A<sub>1</sub>-k<sub>21</sub>*A<sub>2</sub><br>
-dA<sub>3</sub>/dt = Q<sub>3</sub>*(C<sub>1</sub>-C<sub>3</sub>) = k<sub>13</sub>*A<sub>1</sub>-k<sub>31</sub>*A<sub>3</sub><br>
-dC<sub>e</sub>/dt = k<sub>e</sub>*(C<sub>1</sub>-C<sub>e</sub>)<br>
-<br>
-A<sub>1</sub>,A<sub>2</sub>,A<sub>3</sub>: amount [mg] <br>
-C<sub>1</sub>,C<sub>2</sub>,C<sub>3</sub>,C<sub>e</sub>: concentration [mg/L] (C<sub>k</sub>=A<sub>k</sub>/V<sub>k</sub>)<br>
-V<sub>1</sub>,V<sub>2</sub>,V<sub>3</sub>: volume [L]<br>
-CL,Q<sub>2</sub>,Q<sub>3</sub>: clearance [L/min]<br>
-k<sub>10</sub>=CL/V<sub>1</sub>, k<sub>12</sub>=Q<sub>2</sub>/V<sub>1</sub>, k13=Q<sub>3</sub>/V<sub>1</sub>, k<sub>21</sub>=Q<sub>2</sub>/V<sub>2</sub>, k<sub>31</sub>=Q<sub>3</sub>/V3 [min]<br>
-
-<hr>
-
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
-2022/9/1 v1.1.2-under-dev<br>
+2022/9/5 v1.1.2-alpha<br>
 2022/8/15 v1.0.0-alpha<br>
 </div>
 </body></html>
