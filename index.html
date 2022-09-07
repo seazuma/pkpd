@@ -1289,6 +1289,7 @@ function create_new_row(){
  DIV_labelarea.style.position = "absolute";
  DIV_labelarea.style.whiteSpace = "nowrap";
  DIV_labelarea.style.borderColor = "black";
+ if(n==0){ DIV_dosearea.innerHTML = "----------------- Click here to register drug"
  DIV_dosearea.style.minWidth = W + "px";
  DIV_dosearea.style.height = row_H + "px";
  DIV_dosearea.style.position = "absolute";
@@ -1619,6 +1620,7 @@ function dose_done(){
  Setting.temp_labelinfo.color = document.getElementById("PU_3_color").value;
 /* new_register */
  if(Setting.row.agent==""){
+  Setting.row.div.firstChild.innerHTML = "";
   Setting.row.register(Setting.temp_label, Setting.selected_agentunit_span)
   create_new_row();
  }
