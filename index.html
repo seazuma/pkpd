@@ -25,13 +25,14 @@ var Compart_color_list = ["red","blue","green"]; // for canvas2
 var CompLineWidth = 80;
 
 var Date_now = new Date();
-var Scale = {
+var Canvas_common = {
  is_moving: false,
  t_scale_300: 120, // time[min] per 300 px
  t_scale: 0.2, // time[min] per px
  t1: Date_now.getHours()*60, // time at origin
  dx : 1, // plot_interval [px]
  x_list: [],
+ div_list: [],
  ready: function(){
   var x;
   for(x=0; x<W; x+=this.dx){
@@ -121,15 +122,6 @@ Model.prototype.set_common = function(){
  this.c30=this.k13/(this.eigen[0]+this.k31); this.c31=this.k13/(this.eigen[1]+this.k31); this.c32=this.k13/(this.eigen[2]+this.k31);
  this.ce0=this.ke/(this.eigen[0]+this.ke); this.ce1=this.ke/(this.eigen[1]+this.ke); this.ce2=this.ke/(this.eigen[2]+this.ke);
 };
-/*
-eigen: zero of characteristic polynomial; X^3 + (k10+k12+k13+k21+k31)X^2 +(k10*k21+k10*k31+k12*k31+k13*k21+k21*k31)X + k10*k21*k31
-c2k,c3k,cek: coefficients satisfying following:
-A1 = \sum_{k=1..3} coeff[k]*exp(eigen[k]*t)
-A2 = \sum_{k=1..3} (c2k := k12/(eigen[k]+k21)) * coeff[k]*exp(eigen[k]*t)
-A3 = \sum_{k=1..3} (c3k := k13/(eigen[k]+k31)) * coeff[k]*exp(eigen[k]*t)
-C1 = \sum_{k=1..3} coeff[k]*exp(eigen[k]*t) / V1
-Ce = coeff_e*exp(-ke) + \sum_{k=1..3} (cek := ke0/(eigen[k]+ke0)) * coeff[k]*exp(eigen[k]*t) / V1
-*/
 function model_from_eigen(eigen,V1,V123,CL,ke){
  var b = -V1/CL*(V123/CL*eigen[0]*eigen[1]*eigen[2]+eigen[0]*eigen[1]+eigen[1]*eigen[2]+eigen[2]*eigen[0]),
  c = -V1/CL*eigen[0]*eigen[1]*eigen[2],
@@ -141,17 +133,6 @@ function model_from_eigen(eigen,V1,V123,CL,ke){
  k10 = CL/V1;
  return model_from_k(k10,k12,k13,k21,k31,ke,V1);
 }
-/* k10,k12,k13,k21,k31 satisfy following equations:
-k10 = CL/V1
-1 + k12/k21 + k13/k31 = V123/V1
-k10+k12+k13+k21+k31 = - (e1+e2+e3)
-k10*k21+k10*k31+k12*k31+k13*k21+k21*k31 = e1*e2+e2*e3+e3*e1
-k10*k21*k31 = - e1*e2*e3
-They can be obtained as:
-k21,k31 are roots of X^2-V1/CL*(V123/CL*e1*e2*e3+e1*e2+e2*e3+e3*e1)*X-V1/CL*e1*e2*e3 = 0
-k12 = -(k21+e1)*(k21+e2)*(k21+e3) / (k21^2+V1/CL*e1*e2*e3),
-k13 = -(k31+e1)*(k31+e2)*(k31+e3) / (k31^2+V1/CL*e1*e2*e3).
-*/
 
 var model_P_E2018 = function(patient){ // Eleveld 2018 (ignore terms of maturation, assume presence of opiates)
  var theta = [0,6.28,25.5,273,1.79,1.75,1.11,0.191,42.3,9.06,-0.0156,-0.00286,33.6,-0.0138,68.3,2.10,1.30,1.42,0.68]
@@ -490,6 +471,7 @@ var LabelInfo = function(agent){
  this.row_list = [];
  this.model_list = [];
  this.model_at = {};
+ this.graph_label_div = null;
  this.compart_label_div = null;
 }
 var LabelInfoList = {};
@@ -517,12 +499,31 @@ Row.prototype.register = function(label, unit_span){
  this.unit = unit_span.innerHTML;
  if(!LabelInfoList[label]){
   this.labelinfo = LabelInfoList[label] = new LabelInfo(this.agent);
+  this.labelinfo.graph_label_div = create_graph_label_div(label);
   this.labelinfo.compart_label_div = create_compart_label_div(label);
+  this.labelinfo.graph_label_div.innerHTML = label + ": x" + this.labelinfo.y_scale_50;
  }
  else{
   this.labelinfo = LabelInfoList[label];
  }
  this.labelinfo.row_list.push(this);
+}
+function create_graph_label_div(label){
+ var div = document.createElement("div");
+ div.style.minWidth = "50px"
+ setClass(div, "button_wide");
+ div.setAttribute("onclick", "set_graph(this);update_graph();");
+ document.getElementById("graph_label_container").appendChild(div);
+ set_graph(div);
+ return div;
+}
+function delete_graph_label_div(div){
+ document.getElementById("graph_label_container").removeChild(div);
+}
+function set_graph(div){
+ setClass(div, div.className == "button_wide"? "button_wide_selected": "button_wide");
+ div.style.cursor = "pointer";
+// update_graph(); this is done after executing this function
 }
 LabelInfo.prototype.delete_row = function(row){
  var i;
@@ -532,6 +533,7 @@ LabelInfo.prototype.delete_row = function(row){
  }}
  if(this.row_list.length==0){
   var label = this.compart_label_div.innerHTML;
+  delete_graph_label_div(this.graph_label_div);
   delete_compart_label_div(this.compart_label_div);
   delete LabelInfoList[label];
  }
@@ -699,7 +701,7 @@ console.log(C_list.total);
  if(!initial_C.TCI_C2) initial_C.TCI_C2 = initial_C.C2;
  if(!initial_C.TCI_C3) initial_C.TCI_C3 = initial_C.C3;
  if(initial_C.TCI_C1 > target){
-  if( TCI_solution_wait.calc_at(Scale.t2).C1 > target ){
+  if( TCI_solution_wait.calc_at(Canvas_common.t2).C1 > target ){
    return solution_wait;
   }
   var t_left = 0, t_right = Math.log(1/2)/model.eigen[2];
@@ -810,7 +812,7 @@ Row.prototype.calc_solutions_until = function(t2){
 }
 
 LabelInfo.prototype.simulate = function(showCompart){
- var xi, xN = Scale.x_list.length;
+ var xi, xN = Canvas_common.x_list.length;
  var ri, rN = this.row_list.length;
  var C1_list = new Array(xN);
  var Ce_list = new Array(xN);
@@ -819,11 +821,11 @@ LabelInfo.prototype.simulate = function(showCompart){
   var t_model, t_next;
   var current_model = this.preset_model_g(Current_patient);
   xi = 0;
-  for(pointer = 0; xi<Scale.x_list.length; pointer++){
+  for(pointer = 0; xi<Canvas_common.x_list.length; pointer++){
    var t_next = this.model_list[pointer] || t_MAX;
-   var x_next = t_next > Scale.t2? Scale.x_list.length: t2x(t_next);
+   var x_next = t_next > Canvas_common.t2? Canvas_common.x_list.length: t2x(t_next);
    for(; xi < x_next; xi++){ Compart.model[xi] = current_model; }
-   if(xi >= Scale.x_list.length)break;
+   if(xi >= Canvas_common.x_list.length)break;
    current_model = this.model_at[t_next];
  }}
  for(xi=0;xi<xN;xi++){
@@ -838,7 +840,7 @@ LabelInfo.prototype.simulate = function(showCompart){
    Compart.total[xi] = 0;
  }}
  for(ri=0;ri<rN;ri++){
-  var sol_list = this.row_list[ri].calc_solutions_until(Scale.t2);
+  var sol_list = this.row_list[ri].calc_solutions_until(Canvas_common.t2);
   var si = sol_list.length - 1;
   xi = xN-1;
   while( xi>=0 ){
@@ -872,14 +874,14 @@ var canvas_1_cursor, ctx_1_cursor;
 var canvas_2, ctx_2;
 var canvas_2_cursor, ctx_2_cursor;
 
-function x2t(x){ return Scale.t1 + (x-O_x)*Scale.t_scale; }
+function x2t(x){ return Canvas_common.t1 + (x-O_x)*Canvas_common.t_scale; }
 function t2x(t){
- var x = parseInt(O_x + (t-Scale.t1)/Scale.t_scale);
+ var x = parseInt(O_x + (t-Canvas_common.t1)/Canvas_common.t_scale);
  return 0<=x&&x<=W ? x : -999;
 }
 
 function canvas_ready(){
- Scale.ready();
+ Canvas_common.ready();
  canvas_1 = document.getElementById('canvas_1'); // graph
  if ( ! canvas_1 || ! canvas_1.getContext ) { return false; }
  canvas_1_cursor = document.getElementById('canvas_1_cursor'); // mouse_event, dynamic layer
@@ -904,12 +906,12 @@ function canvas_ready(){
  };
  canvas_1_cursor.ondragstart = function(){ return false; };
  canvas_1_cursor.onmousedown = function(e) {
-  Scale.is_moving = true;
-  Scale.moving_from = e.pageX;
+  Canvas_common.is_moving = true;
+  Canvas_common.moving_from = e.pageX;
  };
  canvas_1_cursor.onmousemove = function(e) {
-  if(Scale.is_moving){
-   var dx = Math.round ( (e.pageX - Scale.moving_from)/75 ) * 75;
+  if(Canvas_common.is_moving){
+   var dx = Math.round ( (e.pageX - Canvas_common.moving_from)/75 ) * 75;
    draw_moving_x_axis(ctx_1_cursor, dx);
   } else {
    var MouseRect = e.target.getBoundingClientRect();
@@ -923,17 +925,17 @@ function canvas_ready(){
   var y = e.clientY - MouseRect.top;
   canvas2_cross( x,y, false );
  };
- canvas_1_cursor.onmouseup = function(e) { if(Scale.is_moving){
+ canvas_1_cursor.onmouseup = function(e) { if(Canvas_common.is_moving){
    ctx_1_cursor.clearRect(0, 0, W, H);
-   var dx = Math.round ( (e.pageX - Scale.moving_from)/75 ) * 75;
-   update_x_axis(Scale.t1 - dx * Scale.t_scale, Scale.t_scale_300);
-   Scale.is_moving = false;
-   delete(Scale.moving_from);
+   var dx = Math.round ( (e.pageX - Canvas_common.moving_from)/75 ) * 75;
+   update_x_axis(Canvas_common.t1 - dx * Canvas_common.t_scale, Canvas_common.t_scale_300);
+   Canvas_common.is_moving = false;
+   delete(Canvas_common.moving_from);
  }};
  canvas_1_cursor.onmouseout = function() {
-  if(Scale.is_moving){
-   Scale.is_moving = false;
-   delete(Scale.moving_from);
+  if(Canvas_common.is_moving){
+   Canvas_common.is_moving = false;
+   delete(Canvas_common.moving_from);
   } else {
    ctx_1_cursor.clearRect(0, 0, W, H);
    Canvas1CrossFix = false;
@@ -958,7 +960,7 @@ function canvas_ready(){
  ctx_1_cursor = canvas_1_cursor.getContext('2d');
  ctx_2 = canvas_2.getContext('2d');
  ctx_2_cursor = canvas_2_cursor.getContext('2d');
- update_x_axis(Scale.t1, Scale.t_scale_300);
+ update_x_axis(Canvas_common.t1, Canvas_common.t_scale_300);
 // delete childnodes in case user has downloaded loaded HTML 
  document.getElementById("row_container").style.top = H + "px";
  var div = document.getElementById("row_container");
@@ -969,26 +971,26 @@ function draw_moving_x_axis(ctx, dx){
  ctx.clearRect(0, 0, W, H);
  ctx.fillStyle = cCu;
  ctx.strokeStyle = cCu;
- for(t=Scale.t1; t<Scale.t2; t+=Scale.t_scale_300/2){ //draw v-line
+ for(t=Canvas_common.t1; t<Canvas_common.t2; t+=Canvas_common.t_scale_300/2){ //draw v-line
   ctx.beginPath();
   ctx.moveTo( t2x(t)+dx , 0);
   ctx.lineTo( t2x(t)+dx , H-O_y);
   ctx.stroke();
   ctx.fillText( min2hm(t), t2x(t)+dx, H-O_y/2-15);
  }
- var xi, xN = Scale.x_list.length;
+ var xi, xN = Canvas_common.x_list.length;
  var x_list = new Array(xN);
  var y_list = new Array(xN);
  if(Compart.div){
   for(xi=0;xi<xN;xi++){
-   x_list[xi] = Scale.x_list[xi] + dx;
+   x_list[xi] = Canvas_common.x_list[xi] + dx;
    y_list[xi] = parseInt(H-O_y-Compart.C1[xi]*1000*50/LabelInfoList[Compart.div.innerHTML].y_scale_50);
  }}
  ctx.strokeStyle = "#636363";
  plot_graph(ctx, x_list, y_list);
 }
 function update_x_axis(t1, t_scale_300){
- Scale.update(t1, t_scale_300);
+ Canvas_common.update(t1, t_scale_300);
  update_entry_div();
  update_graph();
 }
@@ -1013,20 +1015,24 @@ function update_graph(){
  for(label in LabelInfoList){
   count++;
   var labelinfo = LabelInfoList[ label ];
-  var showCompart = Compart.div && Compart.div.innerHTML == label;
+  var showGraph = labelinfo.graph_label_div.className=="button_wide_selected";
+  var showCompart = labelinfo.compart_label_div.className=="button_wide_selected";
+  if(!showGraph && !showCompart )continue;
   var C1e_list = labelinfo.simulate(showCompart);
-  ctx_1.strokeStyle = labelinfo.color;
-  ctx_1.fillStyle = labelinfo.color;
   var y1e_list = [[],[]];
-  var xi,xN = Scale.x_list.length;
+  var xi,xN = Canvas_common.x_list.length;
   for(xi=0;xi<xN;xi++){
    y1e_list[0].push( parseInt(H-O_y-C1e_list[0][xi]*1000*50/labelinfo.y_scale_50) );
    y1e_list[1].push( parseInt(H-O_y-C1e_list[1][xi]*1000*50/labelinfo.y_scale_50) );
   }
-  plot_graph(ctx_1, Scale.x_list, y1e_list[0]);
-  fill_graph(ctx_1, Scale.x_list, y1e_list[1]);
-  var y_label =  label + ": x" + labelinfo.y_scale_50;
-  ctx_1.fillText(y_label, 10, H-O_y-50 - (count)*15);
+  if(showGraph){
+   ctx_1.strokeStyle = labelinfo.color;
+   ctx_1.fillStyle = labelinfo.color;
+   plot_graph(ctx_1, Canvas_common.x_list, y1e_list[0]);
+   fill_graph(ctx_1, Canvas_common.x_list, y1e_list[1]);
+   var y_label =  label + ": x" + labelinfo.y_scale_50;
+   ctx_1.fillText(y_label, 0, H - O_y - 2 - (count)*18);
+  }
   if( showCompart ){
    var y2_list = [], y3_list = [];
    for(xi=0;xi<xN;xi++){
@@ -1034,11 +1040,11 @@ function update_graph(){
     y3_list.push( parseInt(H-O_y-Compart.C3[xi]*1000*50/labelinfo.y_scale_50) );
    }
    ctx_2.strokeStyle = Compart_color_list[0];
-   plot_graph(ctx_2, Scale.x_list, y1e_list[0]);
+   plot_graph(ctx_2, Canvas_common.x_list, y1e_list[0]);
    ctx_2.strokeStyle = Compart_color_list[1];
-   plot_graph(ctx_2, Scale.x_list, y2_list);
+   plot_graph(ctx_2, Canvas_common.x_list, y2_list);
    ctx_2.strokeStyle = Compart_color_list[2];
-   plot_graph(ctx_2, Scale.x_list, y3_list);
+   plot_graph(ctx_2, Canvas_common.x_list, y3_list);
 }}}
 function draw_axis(ctx){
  ctx.font = ctx_font;
@@ -1087,50 +1093,50 @@ function fill_graph(ctx, x_arr, y_arr){ // set ctx_1.fillStyle before this
 }
 function scale_now(){
  var t1 = Date_now.getHours()*60 + Date_now.getMinutes();
- t1 = Math.floor(t1*2/Scale.t_scale_300)*Scale.t_scale_300/2;
- update_x_axis(t1, Scale.t_scale_300);
+ t1 = Math.floor(t1*2/Canvas_common.t_scale_300)*Canvas_common.t_scale_300/2;
+ update_x_axis(t1, Canvas_common.t_scale_300);
 }
 function scale_short(){
- var t_scale_300 =  Scale.t_scale_300/2;
+ var t_scale_300 =  Canvas_common.t_scale_300/2;
  if(8<t_scale_300 && t_scale_300<16) t_scale_300 = 16;
  if(8*60<t_scale_300 && t_scale_300<16*60) t_scale_300 = 16*60;
  var t_now = Date_now.getHours()*60 + Date_now.getMinutes();
- if(Scale.t0 <= t_now && t_now <= Scale.t2){
-  Scale.t_scale_300 = t_scale_300;
+ if(Canvas_common.t0 <= t_now && t_now <= Canvas_common.t2){
+  Canvas_common.t_scale_300 = t_scale_300;
   scale_now();
  }
  else{
-  t1 = Math.floor(Scale.t1*2/t_scale_300)*t_scale_300/2;
+  t1 = Math.floor(Canvas_common.t1*2/t_scale_300)*t_scale_300/2;
   update_x_axis(t1, t_scale_300);
  }
 }
 function scale_long(){
- if(Scale.t_scale_300 > t_MAX/4)return;
- t_scale_300 =  Scale.t_scale_300*2;
+ if(Canvas_common.t_scale_300 > t_MAX/4)return;
+ t_scale_300 =  Canvas_common.t_scale_300*2;
  if(30<t_scale_300 && t_scale_300<60) t_scale_300 = 30;
  if(24*60<t_scale_300 && t_scale_300<48*60) t_scale_300 = 24*60;
- t1 = Math.floor(Scale.t1*2/t_scale_300)*t_scale_300/2;
+ t1 = Math.floor(Canvas_common.t1*2/t_scale_300)*t_scale_300/2;
  update_x_axis(t1, t_scale_300);
 }
 function scale_prev(){
- if(Scale.t1 < t_MIN/2)return;
- update_x_axis(Scale.t1 - Scale.t_scale_300/2, Scale.t_scale_300);
+ if(Canvas_common.t1 < t_MIN/2)return;
+ update_x_axis(Canvas_common.t1 - Canvas_common.t_scale_300/2, Canvas_common.t_scale_300);
 }
 function scale_next(){
- if(Scale.t1 > t_MAX/2)return;
- update_x_axis(Scale.t1 + Scale.t_scale_300/2, Scale.t_scale_300);
+ if(Canvas_common.t1 > t_MAX/2)return;
+ update_x_axis(Canvas_common.t1 + Canvas_common.t_scale_300/2, Canvas_common.t_scale_300);
 }
 
 /* touchevent */
 
 function canvas_1_touchstart(e){
- Scale.is_moving = true;
- Scale.moving_from = e.changedTouches[0].pageX;
+ Canvas_common.is_moving = true;
+ Canvas_common.moving_from = e.changedTouches[0].pageX;
 }
 function canvas_1_touchmove(e){
  if(e.changedTouches.length==1){
-  if(Scale.is_moving){
-   var dx = Math.round( (e.changedTouches[0].pageX - Scale.moving_from)/75 ) * 75;
+  if(Canvas_common.is_moving){
+   var dx = Math.round( (e.changedTouches[0].pageX - Canvas_common.moving_from)/75 ) * 75;
    draw_moving_x_axis(ctx_1_cursor, dx);
   } else {
    var MouseRect = e.target.getBoundingClientRect();
@@ -1138,10 +1144,10 @@ function canvas_1_touchmove(e){
    var y = e.clientY - MouseRect.top;
    canvas1_cross( x,y, false );
  }}
- else if(Scale.is_moving){
-  Scale.is_moving = false;
+ else if(Canvas_common.is_moving){
+  Canvas_common.is_moving = false;
   ctx_1_cursor.clearRect(0, 0, W, H);
-  delete(Scale.moving_from);
+  delete(Canvas_common.moving_from);
  }
 };
 function canvas_2_touchmove(e){
@@ -1152,12 +1158,12 @@ function canvas_2_touchmove(e){
   canvas2_cross( x,y, false );
 }};
 function canvas_1_touchend(e){
- if(Scale.is_moving){
+ if(Canvas_common.is_moving){
   ctx_1_cursor.clearRect(0, 0, W, H);
-  var dx = Math.round ( (e.changedTouches[0].pageX - Scale.moving_from)/75 ) * 75;
-  update_x_axis(Scale.t1 - dx * Scale.t_scale, Scale.t_scale_300);
-  Scale.is_moving = false;
-  delete(Scale.moving_from);
+  var dx = Math.round ( (e.changedTouches[0].pageX - Canvas_common.moving_from)/75 ) * 75;
+  update_x_axis(Canvas_common.t1 - dx * Canvas_common.t_scale, Canvas_common.t_scale_300);
+  Canvas_common.is_moving = false;
+  delete(Canvas_common.moving_from);
  } else {
   var MouseRect = e.target.getBoundingClientRect();
   var x = e.changedTouches[0].pageX - MouseRect.left;
@@ -1284,6 +1290,10 @@ function create_new_row(){
  DIV_row.style.position = "absolute";
  DIV_row.style.top = n*row_H + "px";
  DIV_row.setAttribute("n", n);
+ if(n==0){
+  DIV_dosearea.innerHTML = "--- Click here to register ---";
+  DIV_dosearea.style.textAlign = "center";
+ }
  DIV_labelarea.style.minWidth = O_x + "px";
  DIV_labelarea.style.height = row_H + "px";
  DIV_labelarea.style.position = "absolute";
@@ -1619,6 +1629,7 @@ function dose_done(){
  Setting.temp_labelinfo.color = document.getElementById("PU_3_color").value;
 /* new_register */
  if(Setting.row.agent==""){
+  Setting.row.div.firstChild.innerHTML = "";
   Setting.row.register(Setting.temp_label, Setting.selected_agentunit_span)
   create_new_row();
  }
@@ -1641,10 +1652,12 @@ function dose_done(){
  var is_TCI = Setting.temp_unit.indexOf("g/mL")!=-1;
  Setting.row.TCI_model_g = is_TCI? Setting.temp_labelinfo.TCI_model_g: null;
 /* update labelinfo */
- LabelInfoList[Setting.row.label].y_scale_50 = Setting.temp_labelinfo.y_scale_50;
- LabelInfoList[Setting.row.label].color = Setting.temp_labelinfo.color;
- LabelInfoList[Setting.row.label].mgmL = Setting.temp_labelinfo.mgmL;
- LabelInfoList[Setting.row.label].preset_model_g = Setting.temp_labelinfo.preset_model_g;
+ var labelinfo = LabelInfoList[Setting.row.label]
+ labelinfo.y_scale_50 = Setting.temp_labelinfo.y_scale_50;
+ labelinfo.graph_label_div.innerHTML = Setting.row.label // + ": x" + labelinfo.y_scale_50;
+ labelinfo.color = Setting.temp_labelinfo.color;
+ labelinfo.mgmL = Setting.temp_labelinfo.mgmL;
+ labelinfo.preset_model_g = Setting.temp_labelinfo.preset_model_g;
 /* label display */
  Setting.row.div.lastChild.innerHTML = Setting.row.label + "("+Setting.row.unit+")"; 
  Setting.row.div.lastChild.style.color = LabelInfoList[Setting.row.label].color;
@@ -1794,11 +1807,12 @@ function compart_ready(){
  document.getElementById("compline_10").style.height = CompLineWidth + "px";
  document.getElementById("compline_info_10").style.top = H + "px";
  document.getElementById("compline_info_10").style.width = CompLineWidth + "px";
- document.getElementById("compline_info_12").style.top = "50px";
  document.getElementById("compline_info_12").style.width = CompLineWidth + "px";
- document.getElementById("compline_info_13").style.top = "50px";
+// document.getElementById("compline_info_12").style.top = "60px";
+// document.getElementById("compline_info_13").style.top = "60px";
+// defined in <style>
  document.getElementById("compline_info_13").style.width = CompLineWidth + "px";
- document.getElementById("compline_info_in").style.top = "-15px";
+ document.getElementById("compline_info_in").style.top = "-16px";
  document.getElementById("compline_info_in").style.width = CompLineWidth + "px";
  document.getElementById("comp_out").style.top = H-O_y + CompLineWidth + "px";
  document.getElementById("comp_out").style.width = CompLineWidth + "px";
@@ -1894,8 +1908,8 @@ function hide_compart(){
 }
 function disp_compart_info(x0){
  if(!Compart.div) return;
- var x = Math.floor(x0/Scale.dx);
- if(x<0 || x>=Scale.x_list.length) return;
+ var x = Math.floor(x0/Canvas_common.dx);
+ if(x<0 || x>=Canvas_common.x_list.length) return;
  var model = Compart.model[x];
  if(!model){ hide_compart();return;}
  disp_compart(model);
@@ -2058,6 +2072,7 @@ span .button_wide_selected{
 .x_scale_button{
  z-index:12;
  background-color:#cccccc;
+ cursor: pointer;
  width: 36px;
  line-height: 36px;
  border: 3px outset;
@@ -2123,24 +2138,24 @@ span .button_wide_selected{
  height:50px;
 }
 
-#compart_label_container{
+#graph_label_container, #compart_label_container{
  position:absolute;
- top:35px;
+ top:20px;
  z-index:5;
 }
 .comp_info{
  position:absolute;
-top:15px;
+top:16px;
 }
 .compline_info{
  position:absolute;
-/* top:45px; */
+ top:60px; 
 }
 #compline_info_in{
  white-space: nowrap;
 }
 
-#usage, #model, #abbreviation{
+#usage, #model, #abbreviation, #formula{
  display:none;
 }
 </style>
@@ -2157,6 +2172,7 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 <div id="area1">
  <canvas id="canvas_1"></canvas>
  <canvas id="canvas_1_cursor"></canvas>
+ <div id="graph_label_container"></div>
  <div id="row_container"></div>
 
 <!-- x-scale -->
@@ -2276,8 +2292,8 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
  <div class="compline_info" id="compline_info_13"></div>
  <div class="compline_info" id="compline_info_10"></div>
  <div id="comp_out"></div>
- <div id="compart_label_container"></div>
  <canvas id="canvas_2_cursor"></canvas>
+ <div id="compart_label_container"></div>
 
  <form id="x_scale_setting_2">
   <span class="x_scale_button" onclick="scale_short();">+</span><span class="x_scale_button" onclick="scale_long();">-</span> <br>
@@ -2335,40 +2351,103 @@ Second canvas: visualization of central (red), rapid peripheral (blue), and slow
   <li> Rupp, 1987 (using,TBW) (younger [30-57] / older [70-84]) [PMID: 2886080] </li>
  </ul></li>
 </ul>
-<br>
-dA<sub>1</sub>/dt = <i>infusion</i>-CL*C<sub>1</sub>-Q<sub>2</sub>*(C<sub>1</sub>-C2)-Q<sub>3</sub>*(C<sub>1</sub>-C<sub>3</sub>) = <i>infusion</i>-(k<sub>10</sub>+k<sub>12</sub>+k<sub>13</sub>)*A<sub>1</sub>+k<sub>21</sub>*A<sub>2</sub>+k<sub>31</sub>*A<sub>3</sub><br>
-dA<sub>2</sub>/dt = Q<sub>2</sub>*(C<sub>1</sub>-C<sub>2</sub>) = k<sub>12</sub>*A<sub>1</sub>-k<sub>21</sub>*A<sub>2</sub><br>
-dA<sub>3</sub>/dt = Q<sub>3</sub>*(C<sub>1</sub>-C<sub>3</sub>) = k<sub>13</sub>*A<sub>1</sub>-k<sub>31</sub>*A<sub>3</sub><br>
-dC<sub>e</sub>/dt = k<sub>e</sub>*(C<sub>1</sub>-C<sub>e</sub>)<br>
-<br>
-A<sub>1</sub>,A<sub>2</sub>,A<sub>3</sub>: amount [mg] <br>
-C<sub>1</sub>,C<sub>2</sub>,C<sub>3</sub>,C<sub>e</sub>: concentration [mg/L] (C<sub>k</sub>=A<sub>k</sub>/V<sub>k</sub>)<br>
-V<sub>1</sub>,V<sub>2</sub>,V<sub>3</sub>: volume [L]<br>
-CL,Q<sub>2</sub>,Q<sub>3</sub>: clearance [L/min]<br>
-k<sub>10</sub>=CL/V<sub>1</sub>, k<sub>12</sub>=Q<sub>2</sub>/V<sub>1</sub>, k13=Q<sub>3</sub>/V<sub>1</sub>, k<sub>21</sub>=Q<sub>2</sub>/V<sub>2</sub>, k<sub>31</sub>=Q<sub>3</sub>/V3 [min]<br>
-
 </div>
 <hr>
 <a href="javascript:appear_disappear('abbreviation');">▼Abbreviation▼</a>
 <div id="abbreviation">
-TBW: total body weight<br>
-IBW: ideal body weight: (used by Masui)<br>
-　45.4+0.89*(height-152.4)+4.5 for male<br>
-　45.4+0.89*(height-152.4) for female<br>
-ABW: adjusted body weight = IBW+0.4*(TBW-IBW) (used by Masui)<br>
-LBM: lean body mass: (used by Minto)<br>
-　1.1*TBW-128*(TBW/height)<sup>2</sup> for male<br>
-　1.07*Weight-148*(TBW/height)<sup>2</sup> for female<br>
-FFM<sub>j</sub>: fat free mass by Janmahasatian: (used by Kim)<br>
-　9270*TBW/(6680+216*BMI) for male<br>
-　9270*TBW/(8780+244*BMI) for female<br>
-FFM<sub>AS</sub>: fat free mass by Al Sallami et al.: (used by Eleveld, Morse)<br>
-　(0.88+(1-0.88)/(1+(age/13.4)<sup>-12.7</sup>))*FFM<sub>j</sub> for male<br>
-　(1.11+(1-1.11)/(1+(age/7.1)<sup>-1.1</sup>))*FFM<sub>j</sub> for female<br>
+<ul>
+<li>TBW: total body weight</li>
+<li>IBW: ideal body weight: (used by Masui)<ul>
+ <li>45.4+0.89*(height-152.4)+4.5 for male</li>
+ <li>　45.4+0.89*(height-152.4) for female</li>
+</ul></li><li>ABW: adjusted body weight = IBW+0.4*(TBW-IBW) (used by Masui)</li>
+<li>LBM: lean body mass: (used by Minto)<ul>
+ <li>1.1*TBW-128*(TBW/height)<sup>2</sup> for male</li>
+ <li>1.07*Weight-148*(TBW/height)<sup>2</sup> for female</li>
+</ul></li><li>FFM<sub>j</sub>: fat free mass by Janmahasatian: (used by Kim)<ul>
+ <li>9270*TBW/(6680+216*BMI) for male</li>
+ <li>9270*TBW/(8780+244*BMI) for female</li>
+</ul></li><li>FFM<sub>AS</sub>: fat free mass by Al Sallami et al.: (used by Eleveld, Morse)<ul>
+ <li>(0.88+(1-0.88)/(1+(age/13.4)<sup>-12.7</sup>))*FFM<sub>j</sub> for male</li>
+ <li>(1.11+(1-1.11)/(1+(age/7.1)<sup>-1.1</sup>))*FFM<sub>j</sub> for female</li>
+</ul></li></ul>
+</div>
+<hr>
+<a href="javascript:appear_disappear('formula');">▼Formula▼</a>
+<div id="formula">
+<ul>
+<li>dA<sub>1</sub>/dt = <i>infusion</i>-CL*C<sub>1</sub>-Q<sub>2</sub>(C<sub>1</sub>-C<sub>2</sub>)-Q<sub>3</sub>(C<sub>1</sub>-C<sub>3</sub>) = <i>infusion</i>-(k<sub>10</sub>+k<sub>12</sub>+k<sub>13</sub>)A<sub>1</sub>+k<sub>21</sub>A<sub>2</sub>+k<sub>31</sub>A<sub>3</sub></li>
+<li>dA<sub>2</sub>/dt = Q<sub>2</sub>(C<sub>1</sub>-C<sub>2</sub>) = k<sub>12</sub>A<sub>1</sub>-k<sub>21</sub>A<sub>2</sub></li>
+<li>dA<sub>3</sub>/dt = Q<sub>3</sub>(C<sub>1</sub>-C<sub>3</sub>) = k<sub>13</sub>A<sub>1</sub>-k<sub>31</sub>A<sub>3</sub></li>
+<li>dC<sub>e</sub>/dt = k<sub>e</sub>(C<sub>1</sub>-C<sub>e</sub>)</li>
+</ul>
+where
+<ul>
+<li>A<sub>1</sub>,A<sub>2</sub>,A<sub>3</sub>: amount [mg] </li>
+<li>C<sub>1</sub>,C<sub>2</sub>,C<sub>3</sub>,C<sub>e</sub>: concentration [mg/L] (C<sub>k</sub>=A<sub>k</sub>/V<sub>k</sub>)</li>
+<li>V<sub>1</sub>,V<sub>2</sub>,V<sub>3</sub>: volume [L]</li>
+<li>CL,Q<sub>2</sub>,Q<sub>3</sub>: clearance [L/min]</li>
+<li>k<sub>10</sub>=CL/V<sub>1</sub>, k<sub>12</sub>=Q<sub>2</sub>/V<sub>1</sub>, k<sub>13</sub>=Q<sub>3</sub>/V<sub>1</sub>, k<sub>21</sub>=Q<sub>2</sub>/V<sub>2</sub>, k<sub>31</sub>=Q<sub>3</sub>/V3 [min]</li>
+</ul>
+
+<h4>1. Simulation with constant infusion</h4>
+
+Let a<sub>k</sub>(k=1..3) be zeros of the characteristic polynomial:<br>
+X<sup>3</sup> + (k<sub>10</sub>+k<sub>12</sub>+k<sub>13</sub>+k<sub>21</sub>+k<sub>31</sub>)X<sup>2</sup> +(k<sub>10</sub>k<sub>21</sub>+k<sub>10</sub>k<sub>31</sub>+k<sub>12</sub>k<sub>31</sub>+k<sub>13</sub>k<sub>21</sub>+k<sub>21</sub>k<sub>31</sub>)X + k<sub>10</sub>k<sub>21</sub>k<sub>31</sub><br>
+Then, 
+<ul>
+<li>A<sub>1</sub> = A<sub>1,equiv</sub> + Σ<sub>k=1..3</sub> b<sub>k</sub>  exp(a<sub>k</sub>t)</li>
+<li>A<sub>2</sub> = A<sub>2,equiv</sub> + Σ<sub>k=1..3</sub> b<sub>k</sub>  exp(a<sub>k</sub>t) k<sub>12</sub>/(a<sub>k</sub>+k<sub>21</sub>)</li>
+<li>A<sub>3</sub> = A<sub>3,equiv</sub> + Σ<sub>k=1..3</sub> b<sub>k</sub>  exp(a<sub>k</sub>t) k<sub>13</sub>/(a<sub>k</sub>+k<sub>31</sub>)</li>
+<li>C<sub>e</sub> = (A<sub>1,equiv</sub> + Σ<sub>k=1..3</sub> b<sub>k</sub>  exp(a<sub>k</sub>t) k<sub>e</sub>/(a<sub>k</sub>+k<sub>e</sub>) + b<sub>e</sub> exp(-k<sub>e</sub>t) ) / V1</li>
+</ul>
+where
+<ul>
+<li>A<sub>1,equiv</sub> = <i>infusion</i> / k<sub>10</sub></li>
+<li>A<sub>2,equiv</sub> = A<sub>1,equiv</sub> * k<sub>12</sub>/k<sub>21</sub></li>
+<li>A<sub>3,equiv</sub> = A<sub>1,equiv</sub> * k<sub>13</sub>/k<sub>31</sub></li>
+<li>b<sub>k</sub>(k=1..3) and b<sub>e</sub> are determined by A<sub>1</sub>,A<sub>2</sub>,A<sub>3</sub>,C<sub>e</sub> at t=0</li>
+</ul>
+
+<h4>2. Similation with TCI (target-controlled infusion)</h4>
+
+In advance bolus V<sub>1</sub>  (<i>target</i> - C<sub>1</sub>) or wait to obtain C<sub>1</sub> = <i>target</i> at t=0.
+Then,
+<ul>
+<li>A<sub>1</sub> = A<sub>1,equiv</sub></li>
+<li>A<sub>2</sub> = A<sub>2,equiv</sub> + b<sub>2</sub>  exp(-k<sub>21</sub>t)</li>
+<li>A<sub>3</sub> = A<sub>3,equiv</sub> + b<sub>3</sub>  exp(-k<sub>31</sub>t)</li>
+<li>C<sub>e</sub> = (A<sub>1,equiv</sub> + b<sub>e</sub>  exp(-k<sub>e</sub>t) ) / V1</li>
+<li><i>infusion</i> = k<sub>10</sub>  A<sub>1,equiv</sub> - k<sub>21</sub> b<sub>2</sub> exp(-k<sub>21</sub>t) - k<sub>31</sub> b<sub>3</sub> exp(-k<sub>31</sub>t)</li>
+</ul>
+where
+<ul>
+<li>A<sub>1,equiv</sub> = <i>target</i> * V1</li>
+<li>A<sub>2,equiv</sub> = A<sub>1,equiv</sub> * k<sub>12</sub>/k<sub>21</sub></li>
+<li>A<sub>3,equiv</sub> = A<sub>1,equiv</sub> * k<sub>13</sub>/k<sub>31</sub></li>
+<li>b<sub>2</sub>, b<sub>3</sub>, and b<sub>e</sub> are determined  by A<sub>2</sub>,A<sub>3</sub>,C<sub>e</sub> at t=0</li>
+</ul>
+
+<h4>* Obtain k<sub>10</sub>,k<sub>12</sub>,k<sub>13</sub>,k<sub>21</sub>,k<sub>31</sub> from V<sub>1</sub>, V=V<sub>1</sub>+V<sub>2</sub>+V<sub>3</sub>, CL, and half-time t<sub>k</sub> (required in Doi,2014)</h4>
+
+a<sub>k</sub> = -ln2/t<sub>k</sub>(k=1..3) are the zeros of the characteristic polynomial above.<br>
+k<sub>10</sub>,k<sub>12</sub>,k<sub>13</sub>,k<sub>21</sub>,k<sub>31</sub> satisfy following equations:
+<ul>
+<li>k<sub>10</sub> = CL/V<sub>1</sub></li>
+<li>1 + k<sub>12</sub>/k<sub>21</sub> + k<sub>13</sub>/k<sub>31</sub> = V/V1</li>
+<li>k<sub>10</sub>+k<sub>12</sub>+k<sub>13</sub>+k<sub>21</sub>+k<sub>31</sub> = - (a<sub>1</sub>+a<sub>2</sub>+a<sub>3</sub>)</li>
+<li>k<sub>10</sub>k<sub>21</sub>+k<sub>10</sub>k<sub>31</sub>+k<sub>12</sub>k<sub>31</sub>+k<sub>13</sub>k<sub>21</sub>+k<sub>21</sub>k<sub>31</sub> = a<sub>1</sub>a<sub>2</sub>+a<sub>2</sub>a<sub>3</sub>+a<sub>3</sub>a<sub>1</sub></li>
+<li>k<sub>10</sub>k<sub>21</sub>k<sub>31</sub> = - a<sub>1</sub>a<sub>2</sub>a<sub>3</sub></li>
+</ul>
+They can be obtained as:
+<ul>
+<li>k<sub>21</sub>,k<sub>31</sub> are the roots of X<sup>2</sup>-V<sub>1</sub>/CL(V/CL*a<sub>1</sub>*a<sub>2</sub>*a<sub>3</sub>+a<sub>1</sub>a<sub>2</sub>+a<sub>2</sub>a<sub>3</sub>+a<sub>3</sub>a<sub>1</sub>)X-V<sub>1</sub>/CL*a<sub>1</sub>*a<sub>2</sub>*a<sub>3</sub> = 0</li>
+<li>k<sub>12</sub> = -(k<sub>21</sub>+a<sub>1</sub>)(k<sub>21</sub>+a<sub>2</sub>)(k<sub>21</sub>+a<sub>3</sub>) / (k<sub>21</sub><sup>2</sup>+V<sub>1</sub>/CL*a<sub>1</sub>a<sub>2</sub>a<sub>3</sub>)</li>
+<li>k<sub>13</sub> = -(k<sub>31</sub>+a<sub>1</sub>)(k<sub>31</sub>+a<sub>2</sub>)(k<sub>31</sub>+a<sub>3</sub>) / (k<sub>31</sub><sup>2</sup>+V<sub>1</sub>/CL*a<sub>1</sub>a<sub>2</sub>a<sub>3</sub>)</li>
+</ul>
 </div>
 <hr>
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
-2022/9/7 v1.2.1-alpha<br>
-2022/8/15 v1.0.0-alpha<br>
+2022/9/14 v1.2.2-alpha<br>
 </div>
 </body></html>
