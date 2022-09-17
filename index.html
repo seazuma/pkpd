@@ -32,7 +32,6 @@ var Canvas_common = {
  t1: Date_now.getHours()*60, // time at origin
  dx : 1, // plot_interval [px]
  x_list: [],
- div_list: [],
  ready: function(){
   var x;
   for(x=0; x<W; x+=this.dx){
@@ -341,6 +340,10 @@ function appear(x){document.getElementById(x).style.display = "block"; }
 function disappear(x){document.getElementById(x).style.display = "none"; }
 function appear_disappear(x){ document.getElementById(x).style.display =  document.getElementById(x).style.display != "block"?"block":"none";}
 function setClass(x,y){ x.setAttribute("class",y);x.setAttribute("className",y); x.className=y;}
+function setEvent(elem,key,func){
+ if(elem.addEventListener){ elem.addEventListener(key,func,false); }
+ else if(elem.attachEvent){ elem.attachEvent(key,func,false); }
+}
 function myPrecision(x){// my display style
  return isNaN(x)? "":x<-0.0001? "-"+myPrecision(-x): x>=100? x.toFixed(0):x>=10? x.toFixed(0)+".0"==x.toFixed(1)? x.toFixed(0): x.toFixed(1):
   x>=1? x.toFixed(0)+".00"==x.toFixed(2)? x.toFixed(0): x.toFixed(1)+"0"==x.toFixed(2)? x.toFixed(1): x.toFixed(2)
@@ -396,7 +399,7 @@ function indexBelowValue2(val,array){
   else { left = index+1; }
   index = Math.floor((left + right) / 2);
  }
- return index-1;
+ return index - 1;
 }
 function deleteValue2(val,array){
  var length = array.length;
@@ -471,59 +474,96 @@ var LabelInfo = function(agent){
  this.row_list = [];
  this.model_list = [];
  this.model_at = {};
- this.graph_label_div = null;
  this.compart_label_div = null;
 }
 var LabelInfoList = {};
 
 var Row_list = [];
 
-var Row = function(div){
- this.div = div;
- this.unit_span = null;
- this.n = Row_list.length? Row_list[Row_list.length-1].n + 1 : 0; // id
- Row_list.push(this); 
- this.agent = ""
+function dosearea_click(e){
+ var MouseRect = e.target.getBoundingClientRect();
+ var x = e.clientX - MouseRect.left;
+ var n = parseInt(e.target.getAttribute("n"));
+ var time =  x2t(x);
+ add_drug(n,time);
+}
+function dosearea_mousemove(e){
+ var MouseRect = e.target.getBoundingClientRect();
+ cursor_to( e.clientX - MouseRect.left );
+}
+
+var Row = function(){
+ this.n = Row_list.length; // ? Row_list[Row_list.length-1].n + 1 : 0; // id
+ var dosearea_div = document.createElement('div');
+ document.getElementById("row_container").appendChild(dosearea_div);
+ dosearea_div.style.top = this.n*row_H + "px";
+ dosearea_div.style.minWidth = W + "px";
+ dosearea_div.style.height = row_H - 1 + "px";
+ dosearea_div.setAttribute("n", this.n);
+ if(this.n==0){
+  dosearea_div.innerHTML = "--- Click here to register ---";
+  dosearea_div.style.textAlign = "center";
+ }
+ setClass(dosearea_div, "dosearea");
+/*
+ dosearea_div.onclick = function(e){
+  var MouseRect = e.target.getBoundingClientRect();
+  var x = e.clientX - MouseRect.left;
+  var n = parseInt(e.target.getAttribute("n"));
+  var time =  x2t(x);
+  add_drug(n,time);
+ }
+ dosearea_div.onmousemove = function(e){
+  var MouseRect = e.target.getBoundingClientRect();
+  cursor_to( e.clientX - MouseRect.left );
+ }
+ dosearea_div.onmouseout = cursor_delete;
+*/
+ setEvent(dosearea_div, "click", dosearea_click)
+ setEvent(dosearea_div, "mousemove", dosearea_mousemove)
+ setEvent(dosearea_div, "mouseout", cursor_delete)
+ setEvent(dosearea_div, "touchstart", dosearea_touchstart)
+ setEvent(dosearea_div, "touchmove", dosearea_touchmove)
+ setEvent(dosearea_div, "touchend", dosearea_touchend)
+ this.dosearea_div = dosearea_div;
+// var entryarea_div = document.createElement('div');
+// document.getElementById("row_container").appendChild(entryarea_div);
+// entryarea_div.style.top = this.n*row_H + "px";
+ this.entryarea_div = dosearea_div;
+ this.agent = "";
  this.label = "";
- this.labelinfo = null;
  this.unit = "";
+ this.unit_span = null;
+ this.labelinfo = null;
  this.entry_list = [];
  this.entry_at = {};
  this.div_list = [];
  this.div_at = {};
+ Row_list.push(this); 
 }
 Row.prototype.register = function(label, unit_span){
  this.agent = unit_span.getAttribute("agent");
  this.label = label;
- this.unit_span = unit_span;
+ this.unit_span = unit_span; // botton in pop_up
  this.unit = unit_span.innerHTML;
+ var labelarea_div = document.createElement('div');
+ setClass(labelarea_div, "labelarea_on");
+ labelarea_div.style.top = this.n*row_H + "px";
+ labelarea_div.style.height = row_H - 6 + "px";
+ labelarea_div.onclick = function(){
+  setClass(this, this.className == "labelarea_off"? "labelarea_on": "labelarea_off");
+  update_graph();
+ };
+ this.labelarea_div = labelarea_div;
+ document.getElementById("row_container").appendChild(labelarea_div);
  if(!LabelInfoList[label]){
   this.labelinfo = LabelInfoList[label] = new LabelInfo(this.agent);
-  this.labelinfo.graph_label_div = create_graph_label_div(label);
   this.labelinfo.compart_label_div = create_compart_label_div(label);
-  this.labelinfo.graph_label_div.innerHTML = label + ": x" + this.labelinfo.y_scale_50;
  }
  else{
   this.labelinfo = LabelInfoList[label];
  }
  this.labelinfo.row_list.push(this);
-}
-function create_graph_label_div(label){
- var div = document.createElement("div");
- div.style.minWidth = "50px"
- setClass(div, "button_wide");
- div.setAttribute("onclick", "set_graph(this);update_graph();");
- document.getElementById("graph_label_container").appendChild(div);
- set_graph(div);
- return div;
-}
-function delete_graph_label_div(div){
- document.getElementById("graph_label_container").removeChild(div);
-}
-function set_graph(div){
- setClass(div, div.className == "button_wide"? "button_wide_selected": "button_wide");
- div.style.cursor = "pointer";
-// update_graph(); this is done after executing this function
 }
 LabelInfo.prototype.delete_row = function(row){
  var i;
@@ -533,7 +573,6 @@ LabelInfo.prototype.delete_row = function(row){
  }}
  if(this.row_list.length==0){
   var label = this.compart_label_div.innerHTML;
-  delete_graph_label_div(this.graph_label_div);
   delete_compart_label_div(this.compart_label_div);
   delete LabelInfoList[label];
  }
@@ -601,9 +640,10 @@ Row.prototype.add_data = function(time, dose, model, div){
  div.setAttribute("time", time);
  div.style.color = model? "red": "black"; // clarify entry with model change by red color
  div.style.left = parseInt( t2x(time) ) + "px";
- this.div.insertBefore(div, this.div.lastChild); // so that label_div preserved as lastChild
  this.div_at[time] = div;
- insertValue2(time, this.div_list); // currently this is not used
+ var idx = insertValue2(time, this.div_list); // currently this is not used?
+DB = [div, this.div_at[this.div_list[idx]] || null]
+ this.entryarea_div.insertBefore(div, this.div_at[this.div_list[idx+1]] || null);
 };
 Row.prototype.delete_data = function(time){
  delete(this.entry_at[time])
@@ -840,6 +880,7 @@ LabelInfo.prototype.simulate = function(showCompart){
    Compart.total[xi] = 0;
  }}
  for(ri=0;ri<rN;ri++){
+  if( this.row_list[ri].labelarea_div.className == "labelarea_off" ) {continue;}
   var sol_list = this.row_list[ri].calc_solutions_until(Canvas_common.t2);
   var si = sol_list.length - 1;
   xi = xN-1;
@@ -1011,13 +1052,12 @@ function update_graph(){
  ctx_2.fillRect(0, 0, W, H);
  draw_axis(ctx_1);
  draw_axis(ctx_2);
- var count = -1;
+ var count = Object.keys(LabelInfoList).length;
  for(label in LabelInfoList){
-  count++;
+  count--;
   var labelinfo = LabelInfoList[ label ];
-  var showGraph = labelinfo.graph_label_div.className=="button_wide_selected";
   var showCompart = labelinfo.compart_label_div.className=="button_wide_selected";
-  if(!showGraph && !showCompart )continue;
+//  if(!showGraph && !showCompart )continue;
   var C1e_list = labelinfo.simulate(showCompart);
   var y1e_list = [[],[]];
   var xi,xN = Canvas_common.x_list.length;
@@ -1025,14 +1065,14 @@ function update_graph(){
    y1e_list[0].push( parseInt(H-O_y-C1e_list[0][xi]*1000*50/labelinfo.y_scale_50) );
    y1e_list[1].push( parseInt(H-O_y-C1e_list[1][xi]*1000*50/labelinfo.y_scale_50) );
   }
-  if(showGraph){
+//  if(showGraph){
    ctx_1.strokeStyle = labelinfo.color;
    ctx_1.fillStyle = labelinfo.color;
    plot_graph(ctx_1, Canvas_common.x_list, y1e_list[0]);
    fill_graph(ctx_1, Canvas_common.x_list, y1e_list[1]);
    var y_label =  label + ": x" + labelinfo.y_scale_50;
    ctx_1.fillText(y_label, 0, H - O_y - 2 - (count)*18);
-  }
+//  }
   if( showCompart ){
    var y2_list = [], y3_list = [];
    for(xi=0;xi<xN;xi++){
@@ -1221,8 +1261,8 @@ var Touching_n = -1;
 
 function dosearea_touchstart(e){
  e.preventDefault();
- Touching_n = parseInt(e.target.parentElement.getAttribute("n"));
- if(Row_list[Touching_n]){ setClass(Row_list[Touching_n].div.firstChild, "drug_row_hover"); }
+ Touching_n = parseInt(e.target.getAttribute("n"));
+ if(Row_list[Touching_n]){ setClass(Row_list[Touching_n].dosearea_div, "drug_row_hover"); }
  else{ Touching_n = -1; }
 }
 
@@ -1233,10 +1273,10 @@ function dosearea_touchmove(e){
  var y = e.changedTouches[0].pageY - containerRect.top;
  var new_n = Math.floor(y/row_H);
  if( new_n != Touching_n ){
-  if(Touching_n != -1){ setClass(Row_list[Touching_n].div.firstChild, "drug_row"); }
+  if(Touching_n != -1){ setClass(Row_list[Touching_n].dosearea_div, "drug_row"); }
   if(Row_list[new_n]){
    Touching_n = new_n;
-   setClass(Row_list[Touching_n].div.firstChild, "drug_row_hover");
+   setClass(Row_list[Touching_n].dosearea_div, "drug_row_hover");
   }
   else{ Touching_n = -1; }
  }
@@ -1246,7 +1286,7 @@ function dosearea_touchend(e){
  e.preventDefault();
  var n = Touching_n;
  if(Row_list[Touching_n]){
-  setClass(Row_list[Touching_n].div.firstChild, "drug_row");
+  setClass(Row_list[Touching_n].dosearea_div, "drug_row");
   var containerRect = d("row_container").getBoundingClientRect();
   var x = e.changedTouches[0].pageX - containerRect.left;
   var time =  x2t(x);
@@ -1279,66 +1319,7 @@ function cursor_delete() {
 }
 
 function create_new_row(){
- var n = Row_list.length;
- var DIV_row = document.createElement('div');
- var DIV_labelarea = document.createElement('div');
- var DIV_dosearea = document.createElement('div');
- document.getElementById("row_container").appendChild(DIV_row);
- DIV_row.appendChild(DIV_dosearea);
- DIV_row.appendChild(DIV_labelarea);
- var row = new Row(DIV_row);
- DIV_row.style.position = "absolute";
- DIV_row.style.top = n*row_H + "px";
- DIV_row.setAttribute("n", n);
- if(n==0){
-  DIV_dosearea.innerHTML = "--- Click here to register ---";
-  DIV_dosearea.style.textAlign = "center";
- }
- DIV_labelarea.style.minWidth = O_x + "px";
- DIV_labelarea.style.height = row_H + "px";
- DIV_labelarea.style.position = "absolute";
- DIV_labelarea.style.whiteSpace = "nowrap";
- DIV_labelarea.style.borderColor = "black";
- DIV_dosearea.style.minWidth = W + "px";
- DIV_dosearea.style.height = row_H + "px";
- DIV_dosearea.style.position = "absolute";
- setClass(DIV_labelarea, "drug_row");
- setClass(DIV_dosearea, "drug_row");
- DIV_labelarea.onclick = function(e){
-  var n = parseInt(e.target.parentElement.getAttribute("n"));
-  var date = new Date();
-  var time = date.getHours()*60 + date.getMinutes();
-  add_drug(n,time);
- };
- DIV_labelarea.onmousemove = function(){
-  var Date_now = new Date();
-  var h = Date_now.getHours();
-  var m = Date_now.getMinutes();
-  cursor_to( t2x( h*60+m ) );
- }
- DIV_labelarea.onmouseout = cursor_delete;
- DIV_dosearea.onclick = function(e){
-  var MouseRect = e.target.getBoundingClientRect();
-  var x = e.clientX - MouseRect.left;
-  var n = parseInt(e.target.parentElement.getAttribute("n"));
-  var time =  x2t(x);
-  add_drug(n,time);
- }
- DIV_dosearea.onmousemove = function(e){
-  var MouseRect = e.target.getBoundingClientRect();
-  cursor_to( e.clientX - MouseRect.left );
- }
- DIV_dosearea.onmouseout = cursor_delete;
- if(DIV_labelarea.addEventListener) {
-  DIV_dosearea.addEventListener('touchstart', dosearea_touchstart, false);
-  DIV_dosearea.addEventListener('touchmove', dosearea_touchmove, false);
-  DIV_dosearea.addEventListener('touchend', dosearea_touchend, false);
- }
- else if(DIV_labelarea.attachEvent) { 
-  DIV_dosearea.attachEvent('touchstart', dosearea_touchstart, false);
-  DIV_dosearea.attachEvent('touchmove', dosearea_touchmove, false);
-  DIV_dosearea.attachEvent('touchend', dosearea_touchend, false);
- }
+ new Row();
  adjust_height();
 }
 function adjust_height(){
@@ -1411,7 +1392,8 @@ function add_drug(n, time){
  edit_mode(false);
  appear("PU_1_rowinfo");
  document.getElementById("entry_time").value = min2hm(time);
- if(Setting.row.agent){
+DB = n;
+ if(Setting.row && Setting.row.agent){
   appear("delete_row_button");
   Row_list[n].unit_span.innerHTML = Row_list[n].unit;
   select_drug(Row_list[n].unit_span);
@@ -1426,7 +1408,7 @@ function add_drug(n, time){
 }
 function edit_drug(div){
  if(Setting.is_pop_up){return;}
- var n = parseInt(div.parentElement.getAttribute("n"));
+ var n = parseInt(div.getAttribute("n"));
  var row = Row_list[n];
  var time = parseInt(div.getAttribute("time"));
  Setting.initialize(row);
@@ -1629,7 +1611,7 @@ function dose_done(){
  Setting.temp_labelinfo.color = document.getElementById("PU_3_color").value;
 /* new_register */
  if(Setting.row.agent==""){
-  Setting.row.div.firstChild.innerHTML = "";
+  Setting.row.dosearea_div.innerHTML = "";
   Setting.row.register(Setting.temp_label, Setting.selected_agentunit_span)
   create_new_row();
  }
@@ -1654,13 +1636,12 @@ function dose_done(){
 /* update labelinfo */
  var labelinfo = LabelInfoList[Setting.row.label]
  labelinfo.y_scale_50 = Setting.temp_labelinfo.y_scale_50;
- labelinfo.graph_label_div.innerHTML = Setting.row.label // + ": x" + labelinfo.y_scale_50;
  labelinfo.color = Setting.temp_labelinfo.color;
  labelinfo.mgmL = Setting.temp_labelinfo.mgmL;
  labelinfo.preset_model_g = Setting.temp_labelinfo.preset_model_g;
 /* label display */
- Setting.row.div.lastChild.innerHTML = Setting.row.label + "("+Setting.row.unit+")"; 
- Setting.row.div.lastChild.style.color = LabelInfoList[Setting.row.label].color;
+ Setting.row.labelarea_div.innerHTML = Setting.row.label + "("+Setting.row.unit+")"; 
+ Setting.row.labelarea_div.style.color = LabelInfoList[Setting.row.label].color;
 /* entry */
  var time = hm2min( document.getElementById("entry_time").value  );
  var dose = parseFloat(document.getElementById("dose").value);
@@ -1714,9 +1695,9 @@ function dose_prev(){
   edit_drug( div.previousSibling );
  }
  else{
-  var child_list = Setting.row.div.childNodes;
+  var child_list = Setting.row.entrydose_div.childNodes;
   Setting.is_pop_up = false;
-  edit_drug( child_list[child_list.length-2] );
+  edit_drug( Setting.row.entrydose_div.lastChild );
 }}
 function dose_next(){
  if(document.getElementById("dose_next_button").className == "button_invalid")return;
@@ -2083,17 +2064,30 @@ span .button_wide_selected{
  position: absolute;
  z-index:10;
 }
-.drug_row{
+.dosearea, .dosearea_hover{
+ position: absolute;
  background-color:#ffeeaa;
- border: 1px solid;
+ border: 1px solid black;
 }
-.drug_row:hover{
+.dosearea:hover{
  background-color:#ddccff;
 }
-.drug_row_hover{
+.dosearea_hover{
  background-color:#ddccff;
- border: 1px solid;
 }
+
+.labelarea_on, .labelarea_off{
+ position: absolute;
+ white-space: nowrap;
+ cursor: pointer;
+ background-color:#cccccc;
+ border: 3px outset;
+}
+.labelarea_off{
+ background-color:#777777;
+ border: 3px inset;
+}
+
 .dose_each{
  cursor:pointer;
 }
@@ -2138,7 +2132,7 @@ span .button_wide_selected{
  height:50px;
 }
 
-#graph_label_container, #compart_label_container{
+#compart_label_container{
  position:absolute;
  top:20px;
  z-index:5;
@@ -2172,7 +2166,6 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 <div id="area1">
  <canvas id="canvas_1"></canvas>
  <canvas id="canvas_1_cursor"></canvas>
- <div id="graph_label_container"></div>
  <div id="row_container"></div>
 
 <!-- x-scale -->
@@ -2448,6 +2441,6 @@ They can be obtained as:
 </div>
 <hr>
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
-2022/9/14 v1.2.2-alpha<br>
+2022/9/17 v1.2.3-alpha<br>
 </div>
 </body></html>
