@@ -124,8 +124,8 @@ Model.prototype.set_common = function(){
 function model_from_eigen(eigen,V1,V123,CL,ke){
  var b = -V1/CL*(V123/CL*eigen[0]*eigen[1]*eigen[2]+eigen[0]*eigen[1]+eigen[1]*eigen[2]+eigen[2]*eigen[0]),
  c = -V1/CL*eigen[0]*eigen[1]*eigen[2],
- sqrtD = Math.sqrt(b*b-4*c),
- k21 = (-b+sqrtD)/2,
+ sqrtD = Math.sqrt(b*b-4*c);
+ var k21 = (-b+sqrtD)/2,
  k31 = (-b-sqrtD)/2,
  k12 = -(k21+eigen[0])*(k21+eigen[1])*(k21+eigen[2]) / (k21*k21+V1/CL*eigen[0]*eigen[1]*eigen[2]),
  k13 = -(k31+eigen[0])*(k31+eigen[1])*(k31+eigen[2]) / (k31*k31+V1/CL*eigen[0]*eigen[1]*eigen[2]),
@@ -349,7 +349,8 @@ function myPrecision(x){// my display style
   x>=1? x.toFixed(0)+".00"==x.toFixed(2)? x.toFixed(0): x.toFixed(1)+"0"==x.toFixed(2)? x.toFixed(1): x.toFixed(2)
       : x<0.0001? "0":x.toPrecision(1)+"0"==x.toPrecision(2)? x.toPrecision(1): x.toPrecision(2);
 }
-function myPrecision_signed(x){ var ret = myPrecision(x); return ret>0? "+"+ret: ret; }
+function myPrecision_signed(x){ var ret = myPrecision(x); return ret>0? "+"+ret: ret; } // 0->"0"
+function myPrecision_zerosigned(x){ var ret = myPrecision(x); return ret>=0? "+"+ret: ret; } // 0->"+0" 
 
 function min2hm(t){
  if(t<0){ return "-"+min2hm(-t); }
@@ -463,6 +464,116 @@ function solve3(a,b,c){
  return root;
 }
 
+var Linexp = function(arr){
+ this.c = {};
+ this.t = t_MIN;
+ this.k_list = [];
+ this.add(arr);
+}
+// c[k][0]*exp(k*(t-this.t) + c[k][q]*t^q*exp(k*(t-this.t)
+
+Linexp.prototype.add = function(arr){
+ var ai, aN=arr.length;
+ for(ai=0;ai<aN;ai++){ this.add_term(arr[ai]); }
+}
+Linexp.prototype.add_term = function(obj){
+ var k = obj.k;
+ var c = obj.c; // array
+ var t = obj.t || this.t;
+ var ci;
+ if(this.c[k]){
+  if(this.t > t){
+   for(ci=0;ci<c.length;ci++){
+    c[ci] *= Math.exp(this.t - t);
+  }}
+  else if(this.t < t){
+   for(ci=0;ci<this.c[k].length;ci++){
+    this.c[k][ci] *= Math.exp(t - this.t);
+   }
+   this.t = t;
+  }
+  for(ci=0;ci<this.c[k].length;ci++){
+   if(c[ci])this.c[k][ci] += c[ci];
+  }
+  for(;ci<c.length;ci++){
+   if(c[ci])this.c[k][ci] = c[ci];
+  }
+ } else {
+  this.c[k] = c.concat();
+  this.t = t;
+  insertValue2( k,this.k_list );
+ }
+}
+Linexp.prototype.scaler = function(s){
+ var ret = new Linexp([]);
+ ret.t = this.t;
+ for(k in this.c){
+  var c = this.c[k].concat();
+  var C = [];
+  for(ci=c.length-1; ci>=0; ci--){
+   C[ci] = c[ci] * s;
+  }
+  ret.add_term({k:k,c:C});
+ }
+ return ret;
+}
+Linexp.prototype.diff = function(){
+ var ret = new Linexp([]);
+ ret.t = this.t;
+ for(k in this.c){
+  var c = this.c[k].concat();
+  var C = [];
+  for(ci=c.length-1; ci>=0; ci--){
+   C[ci] = c[ci] * parseFloat(k);
+   if(ci>=1){ C[ci-1] += c[ci]*ci; }
+  }
+  ret.add_term({k:k,c:C});
+ }
+ return ret;
+}
+Linexp.prototype.integrate = function(){
+ var ret = new Linexp([]);
+ ret.t = this.t;
+ for(k in this.c){
+  var c = this.c[k].concat();
+  var C = [0];
+  if(k==0){
+   for(ci=c.length-1; ci>=0; ci--){
+    C[ci+1] = c[ci]/(ci+1);
+  }} else {
+   for(ci=c.length-1; ci>=0; ci--){
+    C[ci] = c[ci] / parseFloat(k);
+    if(ci>=1){ c[ci-1] -= C[ci]*ci; }
+    if(ci==0){ ret.add_term({k:0, c:[-c[ci] / parseFloat(k)]}) }
+   }
+  }
+  ret.add_term({k:k,c:C});
+ }
+ return ret;
+}
+Linexp.prototype.calc_at = function(t){
+ var ci,ret = 0;
+ for(k in this.c){
+  for(ci=0;ci<this.c[k].length;ci++){
+   ret += this.c[k][ci] * Math.pow(t-this.t, ci) * Math.exp(parseFloat(k)*(t-this.t));
+ }}
+ return ret;
+}
+Linexp.prototype.display = function(){
+ var ci,ki,kN = this.k_list.length, ret="";
+ if(!kN){return "";}
+ for(ki=0;ki<kN;ki++){
+  var k = this.k_list[ki];
+  for(ci=0;ci<this.c[k].length;ci++){
+   if(this.c[k][ci]!=0){
+    ret += ( ki?myPrecision_zerosigned(this.c[k][ci]):myPrecision(this.c[k][ci]) )
+     + ( ci>1? "t^"+ci: ci==1? "t" : "")
+     + ( k!=0?  "e<sup>"+myPrecision(parseFloat(k)) + "t</sup>" : "");
+  }}
+ }
+ return ret;
+}
+
 /* row and labelinfo management */
 
 var LabelInfo = function(agent){
@@ -481,15 +592,17 @@ var LabelInfoList = {};
 var Row_list = [];
 
 function dosearea_click(e){
- var MouseRect = e.target.getBoundingClientRect();
- var x = e.clientX - MouseRect.left;
+ var containerRect = d("row_container").getBoundingClientRect();
+// var MouseRect = e.target.getBoundingClientRect();
+ var x = e.clientX - containerRect.left;
  var n = parseInt(e.target.getAttribute("n"));
  var time =  x2t(x);
  add_drug(n,time);
 }
 function dosearea_mousemove(e){
- var MouseRect = e.target.getBoundingClientRect();
- cursor_to( e.clientX - MouseRect.left );
+ var containerRect = d("row_container").getBoundingClientRect();
+// var MouseRect = e.target.getBoundingClientRect();
+ cursor_to( e.clientX - containerRect.left );
 }
 
 var Row = function(){
@@ -526,10 +639,7 @@ var Row = function(){
  setEvent(dosearea_div, "touchmove", dosearea_touchmove)
  setEvent(dosearea_div, "touchend", dosearea_touchend)
  this.dosearea_div = dosearea_div;
-// var entryarea_div = document.createElement('div');
-// document.getElementById("row_container").appendChild(entryarea_div);
-// entryarea_div.style.top = this.n*row_H + "px";
- this.entryarea_div = dosearea_div;
+ this.labelarea_div = null;
  this.agent = "";
  this.label = "";
  this.unit = "";
@@ -541,21 +651,34 @@ var Row = function(){
  this.div_at = {};
  Row_list.push(this); 
 }
+function label_click(e){
+ var div = e.target;
+DB=div;
+ var n = parseInt(div.getAttribute("n"));
+ var row = Row_list[n];
+console.log(n)
+ if(row.labelinfo.preset_model_g == model_P_A2005 || row.TCI_model_g == model_P_A2005 ){
+  if( Current_patient.age>16 && row.labelarea_div.className == "labelarea_off" ) {
+   alert("Model only valid for age≦16");return;
+ }}
+ setClass(div, div.className == "labelarea_off"? "labelarea_on": "labelarea_off");
+ update_graph();
+}
 Row.prototype.register = function(label, unit_span){
  this.agent = unit_span.getAttribute("agent");
  this.label = label;
  this.unit_span = unit_span; // botton in pop_up
  this.unit = unit_span.innerHTML;
- var labelarea_div = document.createElement('div');
- setClass(labelarea_div, "labelarea_on");
- labelarea_div.style.top = this.n*row_H + "px";
- labelarea_div.style.height = row_H - 6 + "px";
- labelarea_div.onclick = function(){
-  setClass(this, this.className == "labelarea_off"? "labelarea_on": "labelarea_off");
-  update_graph();
- };
- this.labelarea_div = labelarea_div;
- document.getElementById("row_container").appendChild(labelarea_div);
+ if(!this.labelarea_div){
+  var labelarea_div =  document.createElement('div');
+  setClass(labelarea_div, "labelarea_on");
+  labelarea_div.style.top = this.n*row_H + "px";
+  labelarea_div.style.height = row_H - 6 + "px";
+  labelarea_div.setAttribute("n",this.n);
+  labelarea_div.onclick = label_click;
+  this.labelarea_div = labelarea_div;
+  document.getElementById("row_container").appendChild(labelarea_div);
+ }
  if(!LabelInfoList[label]){
   this.labelinfo = LabelInfoList[label] = new LabelInfo(this.agent);
   this.labelinfo.compart_label_div = create_compart_label_div(label);
@@ -642,8 +765,7 @@ Row.prototype.add_data = function(time, dose, model, div){
  div.style.left = parseInt( t2x(time) ) + "px";
  this.div_at[time] = div;
  var idx = insertValue2(time, this.div_list); // currently this is not used?
-DB = [div, this.div_at[this.div_list[idx]] || null]
- this.entryarea_div.insertBefore(div, this.div_at[this.div_list[idx+1]] || null);
+ this.dosearea_div.insertBefore(div, this.div_at[this.div_list[idx+1]] || null);
 };
 Row.prototype.delete_data = function(time){
  delete(this.entry_at[time])
@@ -677,7 +799,7 @@ function copyRow(n1, n2){
  for(time in Row_list[n1].entry_at){
   Row_list[n2].add_data(time, Row_list[n1].entry_at[time], null, null);
  }
- if(n2==Row_list.length-1){
+ if(n2 == Row_list.length-1){
   create_new_row();
  }
 }
@@ -687,62 +809,151 @@ function copyRow(n1, n2){
 var t_MIN = -999999999999999, t_MAX = 999999999999999;
 /* Number.MIN_SAFE_INTEGER does not work in old browser */
 
-var Solution = function(time, equibs, coeffs, infusion_rate, model, total){
- this.time = time;
- this.equibs = equibs.concat();
- this.coeffs = coeffs.concat();
- this.infusion_rate = infusion_rate;
- this.model = model;
- this.total = total;
-};
-function give_solution(t, C_list, infusion_rate, model){
- var equib_A1 = infusion_rate / model.k10;
- var equib_A2 = equib_A1 * model.k12 / model.k21;
- var equib_A3 = equib_A1 * model.k13 / model.k31;
- var coeffs = solve3x3(1,1,1,model.c20,model.c21,model.c22,model.c30,model.c31,model.c32, C_list.C1*model.V1-equib_A1,C_list.C2*model.V2-equib_A2,C_list.C3*model.V3-equib_A3);
- var coeff_e = C_list.Ce * model.V1 - equib_A1 - model.ce0*coeffs[0] - model.ce1*coeffs[1] - model.ce2*coeffs[2];
- return new Solution(t, [equib_A1,equib_A2,equib_A3], coeffs.concat([coeff_e]), infusion_rate, model, C_list.total);
+Model.prototype.simulate = function(infusion,initial){ // Linexp, state
+ var t = infusion.t;
+ A1 = new Linexp([{k:0,c:[0],t:t}]);
+ A2 = new Linexp([{k:0,c:[0],t:t}]);
+ A3 = new Linexp([{k:0,c:[0],t:t}]);
+// assume infusion.c[k][ci]=0 for ci>0
+// assume eigens are distinct
+ var b123 = [0,0,0];
+// inhomogenous term
+ for(k in infusion.c){
+  var B = infusion.c[k][0];
+  if(k==0){ continue; }
+  if(k==this.eigen[0]){
+   A1.add_term({k:k, c:[0,B] });
+   A2.add_term({k:k, c:[0,B * this.c20] });
+   A3.add_term({k:k, c:[0,B * this.c30] });
+  }
+  else if(k==this.eigen[1]){
+   A1.add_term({k:k, c:[0,B] });
+   A2.add_term({k:k, c:[0,B * this.c21] });
+   A3.add_term({k:k, c:[0,B * this.c31] });
+  }
+  else if(k==this.eigen[2]){
+   A1.add_term({k:k, c:[0,B] });
+   A2.add_term({k:k, c:[0,B * this.c22] });
+   A3.add_term({k:k, c:[0,B * this.c32] });
+  }
+  else{
+   var c123 = solve3x3(this.k10+this.k12+this.k13+parseFloat(k), -this.k21, -this.k31,
+    -this.k12, this.k21+parseFloat(k), 0,
+    -this.k13, 0, this.k31+parseFloat(k), B, 0, 0);
+   A1.add_term({k:k, c:[c123[0]] });
+   A2.add_term({k:k, c:[c123[1]] });
+   A3.add_term({k:k, c:[c123[2]] });
+   b123[0]+=c123[0];
+   b123[1]+=c123[1];
+   b123[2]+=c123[2];
+  }
+ }
+// homogenous term
+ var equib_A1 = (infusion.c[0] && infusion.c[0][0] || 0) / this.k10;
+ var equib_A2 = equib_A1 * this.k12 / this.k21;
+ var equib_A3 = equib_A1 * this.k13 / this.k31;
+ var coeffs = solve3x3(1,1,1,this.c20,this.c21,this.c22,this.c30,this.c31,this.c32,
+ -equib_A1+initial.C1*this.V1-b123[0], -equib_A2+initial.C2*this.V2-b123[1], -equib_A3+initial.C3*this.V3-b123[2]);
+ A1.add([ {k:0, c:[equib_A1]}, {k:this.eigen[0], c:[coeffs[0]]}, {k:this.eigen[1], c:[coeffs[1]]}, {k:this.eigen[2], c:[coeffs[2]]} ]);
+ A2.add([ {k:0, c:[equib_A2]}, {k:this.eigen[0], c:[coeffs[0]*this.c20]}, {k:this.eigen[1], c:[coeffs[1]*this.c21]}, {k:this.eigen[2], c:[coeffs[2]*this.c22]} ]);
+ A3.add([ {k:0, c:[equib_A3]}, {k:this.eigen[0], c:[coeffs[0]*this.c30]}, {k:this.eigen[1], c:[coeffs[1]*this.c31]}, {k:this.eigen[2], c:[coeffs[2]*this.c32]} ]);
+ C1 = A1.scaler(1/this.V1);
+ C2 = A2.scaler(1/this.V2);
+ C3 = A3.scaler(1/this.V3);
+// simulate Ce
+ var b_e = initial.Ce;
+ var Ce = new Linexp([ {k:0, c:[equib_A1/this.V1], t:t} ]);
+ b_e -= equib_A1/this.V1;
+ for(k in C1.c){
+  var B = C1.c[k][0], C = C1.c[k][1] || 0;
+  if(k==0){ continue; }
+  if(k==-this.ke){
+   var ci,C = [0];
+   for(ci=0;ci<C1.c[k].length;ci++){
+    C[ci+1] = C1.c[k] * this.ke/(ci+1);
+   }
+console.log(C)
+   Ce.add_term({k:k, c:C});
+  }
+  else{
+   var ci, c=C1.c[k].concat(), C = [];
+   for(ci=c.length-1; ci>=0; ci--){
+    C[ci] = c[ci]*this.ke/(this.ke+parseFloat(k));
+    if(ci){ c[ci-1]-= ci*C[ci]/this.ke; }
+   }
+   Ce.add_term({k:k, c:C});
+   b_e -= C[0];
+  }
+ }
+ Ce.add_term({k:-this.ke, c:[b_e]});
+ var total = infusion.integrate();
+ var sol = new Solution({time:t, Ce:Ce, C1:C1, C2:C2, C3:C3, infusion:infusion, total:total, model:this});
+ return sol;
 }
-Solution.prototype.calc_at = function(t){
- var model = this.model;
- if(!model) return {Ce:0, C1:0, C2:0, C3:0, infusion:0, total:0};
- var term_0 = this.coeffs[0] * Math.exp(model.eigen[0]*(t-this.time));
- var term_1 = this.coeffs[1] * Math.exp(model.eigen[1]*(t-this.time));
- var term_2 = this.coeffs[2] * Math.exp(model.eigen[2]*(t-this.time));
- var term_e = this.coeffs[3] * Math.exp(-model.ke*(t-this.time));
- var Ce = (this.equibs[0] + model.ce0*term_0 + model.ce1*term_1 + model.ce2*term_2 + term_e) / model.V1
- var C1 = (this.equibs[0] + term_0 + term_1 + term_2) / model.V1;
- var C2 = (this.equibs[1] + model.c20*term_0 + model.c21*term_1 + model.c22*term_2) / model.V2;
- var C3 = (this.equibs[2] + model.c30*term_0 + model.c31*term_1 + model.c32*term_2) / model.V3;
- return {Ce:Ce, C1:C1, C2:C2, C3:C3, infusion:this.infusion_rate, total:this.total + this.infusion_rate * (t - this.time)};
-};
-var solution_zero = new Solution(t_MIN, [0,0,0], [0,0,0,0], [], null, 0);
 
-var Solution_TCI = function(wait_dt, solution_wait, time, TCI_equibs, equibs, coeffs, TCI_model, model, total){
- this.wait_dt = wait_dt;
- this.solution_wait = solution_wait;
- this.time = time;
- this.TCI_equibs = TCI_equibs.concat(); // 1,2,3
- this.equibs = equibs.concat(); // 1,2,3
- this.coeffs = coeffs.concat(); // 1,2,3,e,TCI_2,TCI_3
- this.TCI_model = TCI_model;
- this.model = model;
- this.total = total;
+function give_solution(t, initial, infusion_rate, model){
+ var infusion = new Linexp([{k:0, c:[infusion_rate], t:t}]);
+ return model.simulate(infusion, initial);
+}
+var Solution = function(obj){
+ for(key in obj){
+  this[key] = obj[key];
+}};
+
+Solution.prototype.calc_at = function(t){
+ if(this.isTCI){
+  var TCI_sol = t<this.wait_t? this.TCI_solution_wait: this.TCI_solution;
+  var sol = t<this.wait_t? this.solution_wait: this.solution;
+  return {
+   TCI_Ce:TCI_sol.Ce.calc_at(t),
+   TCI_C1:TCI_sol.C1.calc_at(t),
+   TCI_C2:TCI_sol.C2.calc_at(t),
+   TCI_C3:TCI_sol.C3.calc_at(t),
+   Ce:sol.Ce.calc_at(t),
+   C1:sol.C1.calc_at(t),
+   C2:sol.C2.calc_at(t),
+   C3:sol.C3.calc_at(t),
+   infusion:sol.infusion.calc_at(t),
+   total:sol.total.calc_at(t)
+  };
+ }
+ else{
+  return {
+   Ce:this.Ce.calc_at(t),
+   C1:this.C1.calc_at(t),
+   C2:this.C2.calc_at(t),
+   C3:this.C3.calc_at(t),
+   infusion:this.infusion.calc_at(t),
+   total:this.total.calc_at(t)
+  };
+ }
 };
-function give_solution_TCI(t, C_list, target, TCI_model, model){
+Solution.prototype.display = function(t){
+ var sol = this.isTCI? t<wait_t? this.solution_wait: this.solution : this;
+ return "C1" + sol.C1.display()
+  + "C2" + sol.C2.display()
+  + "C3" + sol.C3.display();
+}
+var solution_zero = new Solution({
+ Ce:new Linexp([]),
+ C1:new Linexp([]),
+ C2:new Linexp([]),
+ C3:new Linexp([]),
+ infusion:new Linexp([]),
+ total:new Linexp([]),
+ time:t_MIN
+});
+
+function give_solution_TCI(t, initial, target, TCI_model, model){
  var wait_dt = 0;
-console.log(C_list.total);
- var TCI_C_list = {C1:C_list.C1, C2:C_list.C2, C3:C_list.C3, Ce:C_list.Ce, total:C_list.total};
- var TCI_solution_wait = give_solution(t, TCI_C_list, 0, TCI_model);
- var solution_wait = give_solution(t, C_list, 0, model);
+ var TCI_initial_afterequiv = {}, initial_afterequiv = {};
+ var TCI_initial = {C1:initial.TCI_C1, C2:initial.TCI_C2, C3:initial.TCI_C3, Ce:initial.TCI_Ce, total: initial.total};
+ var TCI_solution_wait = give_solution(t, TCI_initial, 0, TCI_model);
+ var solution_wait = TCI_model==model? TCI_solution_wait: give_solution(t, initial, 0, model);
  var key,initial_C = {}
- for(key in C_list){ initial_C[key] = C_list[key];}
- if(!initial_C.TCI_C1) initial_C.TCI_C1 = initial_C.C1;
- if(!initial_C.TCI_C2) initial_C.TCI_C2 = initial_C.C2;
- if(!initial_C.TCI_C3) initial_C.TCI_C3 = initial_C.C3;
- if(initial_C.TCI_C1 > target){
+ if(TCI_initial.C1 > target){
   if( TCI_solution_wait.calc_at(Canvas_common.t2).C1 > target ){
-   return solution_wait;
+   return new Solution( {isTCI:true, time:t, wait_t:t_MAX, TCI_solution_wait:TCI_solution_wait, solution_wait:solution_wait} );
   }
   var t_left = 0, t_right = Math.log(1/2)/model.eigen[2];
   while( TCI_solution_wait.calc_at( t + t_right ).C1 > target ){
@@ -753,63 +964,36 @@ console.log(C_list.total);
    if(TCI_solution_wait.calc_at( t + wait_dt ).C1 > target){ t_left = wait_dt; }
    else{ t_right = wait_dt; } 
   }
-  var TCI_wait_C_list = TCI_solution_wait.calc_at( t + wait_dt );
-  var wait_C_list = solution_wait.calc_at( t + wait_dt );
-  for(key in wait_C_list){ initial_C[key] = wait_C_list[key];}
-  for(key in TCI_wait_C_list){ initial_C["TCI_"+key] = TCI_wait_C_list[key];}
+  TCI_initial = TCI_solution_wait.calc_at( t + wait_dt );;
+  initial = solution_wait.calc_at( t + wait_dt );
  }
- else if(initial_C.TCI_C1 < target){
-  var bolus = TCI_model.V1 * (target-initial_C.TCI_C1);
-  initial_C.total += bolus;
-  initial_C.TCI_C1 += bolus/TCI_model.V1;
-  initial_C.C1 += bolus/model.V1;
+ else{
+  for(key in TCI_initial) { TCI_initial_afterequiv = TCI_initial;}
+  for(key in initial) { initial_afterequiv = initial;}
+  if(TCI_initial.C1 < target){
+   var bolus = TCI_model.V1 * (target-TCI_initial.C1);
+   TCI_initial.total += bolus;
+   initial.total += bolus;
+   TCI_initial.C1 += bolus/TCI_model.V1;
+   initial.C1 += bolus/model.V1;
+  }
  }
  var TCI_equib_A1 = TCI_model.V1 * target; 
  var TCI_equib_A2 = TCI_equib_A1 * TCI_model.k12 / TCI_model.k21;
  var TCI_equib_A3 = TCI_equib_A1 * TCI_model.k13 / TCI_model.k31;
- var TCI_coeff_2 = initial_C.TCI_C2 * TCI_model.V2 - TCI_equib_A2;
- var TCI_coeff_3 = initial_C.TCI_C3 * TCI_model.V3 - TCI_equib_A3;
- var equib_A1 = TCI_model.k10 * TCI_equib_A1 / model.k10;
- var equib_A2 = equib_A1 * model.k12 / model.k21;
- var equib_A3 = equib_A1 * model.k13 / model.k31;
- var coeffs = solve3x3(1,1,1,model.c20,model.c21,model.c22,model.c30,model.c31,model.c32,
-  initial_C.C1*model.V1-equib_A1, initial_C.C2*model.V2-equib_A2-TCI_coeff_2, initial_C.C3*model.V3-equib_A3-TCI_coeff_3);
- var coeff_e = initial_C.Ce * model.V1 - equib_A1 - model.ce0*coeffs[0] - model.ce1*coeffs[1] - model.ce2*coeffs[2];
- return new Solution_TCI(wait_dt, solution_wait, t, [TCI_equib_A1,TCI_equib_A2,TCI_equib_A3], [equib_A1,equib_A2,equib_A3], coeffs.concat([coeff_e,TCI_coeff_2,TCI_coeff_3]), TCI_model, model, initial_C.total );
+ var TCI_coeff_2 = TCI_initial.C2 * TCI_model.V2 - TCI_equib_A2;
+ var TCI_coeff_3 = TCI_initial.C3 * TCI_model.V3 - TCI_equib_A3;
+ var infusion = new Linexp([
+  {k:0, c:[TCI_model.k10 * TCI_equib_A1], t:t+wait_dt},
+  {k:-TCI_model.k21, c:[-TCI_model.k21 * TCI_coeff_2]},
+  {k:-TCI_model.k31, c:[-TCI_model.k31 * TCI_coeff_3]}
+ ])
+ var TCI_solution = TCI_model.simulate(infusion, TCI_initial);
+ var solution = TCI_model==model? TCI_solution: model.simulate(infusion, initial);
+ return new Solution( {isTCI:true, time:t, wait_t: t+wait_dt, model:model,
+  TCI_solution:TCI_solution, solution:solution,
+  TCI_solution_wait:TCI_solution_wait, solution_wait:solution_wait} );
 }
-/*
-A2_TCI = TCI_equib_A2 + TCI_coeff_2*Math.exp(-TCI_model.k21*(t-this.time-this.wait_dt)) 
-A3_TCI = TCI_equib_A3 + TCI_coeff_3*Math.exp(-TCI_model.k31*(t-this.time-this.wait_dt))
-infusion_rate = TCI_model.k10 * TCI_equib_A1
- - TCI_model.k21 * TCI_coeff_2*Math.exp(-TCI_model.k21*(t-this.time-this.wait_dt))
- - TCI_model.k31 * TCI_coeff_3*Math.exp(-TCI_model.k31*(t-this.time-this.wait_dt))
-A1_simulation = \sum(c[k]*eigen[k])
-A2_simulation = \sum(model.c2k*c[k]*eigen[k]) + TCI_coeff_2*Math.exp(-TCI_model.k21*(t-this.time-this.wait_dt))
-A3_simulation = \sum(model.c3k*c[k]*eigen[k]) + TCI_coeff_3*Math.exp(-TCI_model.k31*(t-this.time-this.wait_dt))
-*/
-
-Solution_TCI.prototype.calc_at = function(t){
- var model = this.model;
- if(!model) return {Ce:0, C1:0, C2:0, C3:0, infusion:0, total:0};
- if(t <= this.time + this.wait_dt){
-  return this.solution_wait.calc_at(t);
- }
- var TCI_C2 = (this.TCI_equibs[1] + this.coeffs[4]*Math.exp(-this.TCI_model.k21*(t-this.time-this.wait_dt)) )/this.TCI_model.V2;
- var TCI_C3 = (this.TCI_equibs[2] + this.coeffs[5]*Math.exp(-this.TCI_model.k31*(t-this.time-this.wait_dt)) )/this.TCI_model.V3;
- var term_0 = this.coeffs[0] * Math.exp(model.eigen[0]*(t-this.time-this.wait_dt));
- var term_1 = this.coeffs[1] * Math.exp(model.eigen[1]*(t-this.time-this.wait_dt));
- var term_2 = this.coeffs[2] * Math.exp(model.eigen[2]*(t-this.time-this.wait_dt));
- var term_e = this.coeffs[3] * Math.exp(-model.ke*(t-this.time-this.wait_dt));
- var term_2T = this.coeffs[4] * Math.exp(-this.TCI_model.k21*(t-this.time-this.wait_dt));
- var term_3T = this.coeffs[5] * Math.exp(-this.TCI_model.k31*(t-this.time-this.wait_dt));
- var Ce = (this.equibs[0] + model.ce0*term_0 + model.ce1*term_1 + model.ce2*term_2 + term_e) / model.V1
- var C1 = (this.equibs[0] + term_0 + term_1 + term_2) / model.V1;
- var C2 = (this.equibs[1] + model.c20*term_0 + model.c21*term_1 + model.c22*term_2 + term_2T) / model.V2;
- var C3 = (this.equibs[2] + model.c30*term_0 + model.c31*term_1 + model.c32*term_2 + term_3T) / model.V3;
- var Ci = model.k10 * this.equibs[0] - this.TCI_model.k21 * term_2T - this.TCI_model.k31 * term_3T; // infusion_rate, mg/min
- var Ct = this.total + model.k10 * this.equibs[0] * (t-this.time-this.wait_dt) - (this.coeffs[4] - term_2T) - (this.coeffs[5] - term_3T); // total, mg
- return {Ce:Ce,C1:C1,C2:C2,C3:C3,infusion:Ci,total:Ct, TCI_C1:this.TCI_equibs[0]/this.TCI_model.V1, TCI_C2:TCI_C2, TCI_C3:TCI_C3};
-};
 
 Row.prototype.calc_solutions_until = function(t2){
  var solution_list = [solution_zero];
@@ -823,7 +1007,8 @@ Row.prototype.calc_solutions_until = function(t2){
  var current_model = this.labelinfo.preset_model_g(Current_patient);
  for(pointer = 0; t_next = this.div_list[pointer]; pointer++){
   if( t_next >= t2 ){ break; }
-  var C_next = {Ce:0, C1:0, C2:0, C3:0, infusion:0, total:0};
+  var C_next = !TCI_model? {Ce:0, C1:0, C2:0, C3:0, infusion:0, total:0}:
+   {Ce:0, C1:0, C2:0, C3:0, infusion:0, total:0, TCI_Ce:0, TCI_C1:0, TCI_C2:0, TCI_C3:0}
   if(current_solution !== solution_zero){ 
    C_next = current_solution.calc_at(t_next);
   }
@@ -848,6 +1033,7 @@ Row.prototype.calc_solutions_until = function(t2){
   solution_list.push(solution_next);
   current_solution = solution_next;
  }
+ this.temp_solution_list = solution_list;
  return solution_list;
 }
 
@@ -885,7 +1071,7 @@ LabelInfo.prototype.simulate = function(showCompart){
   var si = sol_list.length - 1;
   xi = xN-1;
   while( xi>=0 ){
-   var sol = sol_list[si]
+   var sol = sol_list[si];
    while( x2t(xi) >= sol.time && xi >= 0){
     if(sol !== solution_zero){
      var model = sol.model; 
@@ -917,7 +1103,7 @@ var canvas_2_cursor, ctx_2_cursor;
 
 function x2t(x){ return Canvas_common.t1 + (x-O_x)*Canvas_common.t_scale; }
 function t2x(t){
- var x = parseInt(O_x + (t-Canvas_common.t1)/Canvas_common.t_scale);
+ var x = Math.floor(O_x + (t-Canvas_common.t1)/Canvas_common.t_scale);
  return 0<=x&&x<=W ? x : -999;
 }
 
@@ -1025,7 +1211,7 @@ function draw_moving_x_axis(ctx, dx){
  if(Compart.div){
   for(xi=0;xi<xN;xi++){
    x_list[xi] = Canvas_common.x_list[xi] + dx;
-   y_list[xi] = parseInt(H-O_y-Compart.C1[xi]*1000*50/LabelInfoList[Compart.div.innerHTML].y_scale_50);
+   y_list[xi] = Math.floor(H-O_y-Compart.C1[xi]*1000*50/LabelInfoList[Compart.div.innerHTML].y_scale_50);
  }}
  ctx.strokeStyle = "#636363";
  plot_graph(ctx, x_list, y_list);
@@ -1052,32 +1238,29 @@ function update_graph(){
  ctx_2.fillRect(0, 0, W, H);
  draw_axis(ctx_1);
  draw_axis(ctx_2);
- var count = Object.keys(LabelInfoList).length;
+ var count = -1;
  for(label in LabelInfoList){
-  count--;
+  count++;
   var labelinfo = LabelInfoList[ label ];
   var showCompart = labelinfo.compart_label_div.className=="button_wide_selected";
-//  if(!showGraph && !showCompart )continue;
   var C1e_list = labelinfo.simulate(showCompart);
   var y1e_list = [[],[]];
   var xi,xN = Canvas_common.x_list.length;
   for(xi=0;xi<xN;xi++){
-   y1e_list[0].push( parseInt(H-O_y-C1e_list[0][xi]*1000*50/labelinfo.y_scale_50) );
-   y1e_list[1].push( parseInt(H-O_y-C1e_list[1][xi]*1000*50/labelinfo.y_scale_50) );
+   y1e_list[0].push( Math.floor(H-O_y-C1e_list[0][xi]*1000*50/labelinfo.y_scale_50) );
+   y1e_list[1].push( Math.floor(H-O_y-C1e_list[1][xi]*1000*50/labelinfo.y_scale_50) );
   }
-//  if(showGraph){
-   ctx_1.strokeStyle = labelinfo.color;
-   ctx_1.fillStyle = labelinfo.color;
-   plot_graph(ctx_1, Canvas_common.x_list, y1e_list[0]);
-   fill_graph(ctx_1, Canvas_common.x_list, y1e_list[1]);
-   var y_label =  label + ": x" + labelinfo.y_scale_50;
-   ctx_1.fillText(y_label, 0, H - O_y - 2 - (count)*18);
-//  }
+  ctx_1.strokeStyle = labelinfo.color;
+  ctx_1.fillStyle = labelinfo.color;
+  plot_graph(ctx_1, Canvas_common.x_list, y1e_list[0]);
+  fill_graph(ctx_1, Canvas_common.x_list, y1e_list[1]);
+  var y_label =  label + ": x" + labelinfo.y_scale_50;
+  ctx_1.fillText(y_label, 0, H - O_y - 2 - (count)*18);
   if( showCompart ){
    var y2_list = [], y3_list = [];
    for(xi=0;xi<xN;xi++){
-    y2_list.push( parseInt(H-O_y-Compart.C2[xi]*1000*50/labelinfo.y_scale_50) );
-    y3_list.push( parseInt(H-O_y-Compart.C3[xi]*1000*50/labelinfo.y_scale_50) );
+    y2_list.push( Math.floor(H-O_y-Compart.C2[xi]*1000*50/labelinfo.y_scale_50) );
+    y3_list.push( Math.floor(H-O_y-Compart.C3[xi]*1000*50/labelinfo.y_scale_50) );
    }
    ctx_2.strokeStyle = Compart_color_list[0];
    plot_graph(ctx_2, Canvas_common.x_list, y1e_list[0]);
@@ -1295,7 +1478,7 @@ function dosearea_touchend(e){
  }
 }
 function cursor_move_on_dose(div){
- cursor_to( t2x( parseInt(div.getAttribute("time") )) );
+ cursor_to( t2x( parseInt(div.getAttribute("time") )) ) ;
 }
 function cursor_to(x){
  Canvas1CrossFix = false;
@@ -1392,7 +1575,6 @@ function add_drug(n, time){
  edit_mode(false);
  appear("PU_1_rowinfo");
  document.getElementById("entry_time").value = min2hm(time);
-DB = n;
  if(Setting.row && Setting.row.agent){
   appear("delete_row_button");
   Row_list[n].unit_span.innerHTML = Row_list[n].unit;
@@ -1408,7 +1590,7 @@ DB = n;
 }
 function edit_drug(div){
  if(Setting.is_pop_up){return;}
- var n = parseInt(div.getAttribute("n"));
+ var n = parseInt(div.parentElement.getAttribute("n"));
  var row = Row_list[n];
  var time = parseInt(div.getAttribute("time"));
  Setting.initialize(row);
@@ -1421,8 +1603,8 @@ function edit_drug(div){
  edit_mode(true);
  appear("PU_1_rowinfo");
  appear("delete_row_button");
- setClass(document.getElementById("dose_prev_button"), div.previousSibling.hasAttribute("time")? "button":"button_invalid");
- setClass(document.getElementById("dose_next_button"), div.nextSibling.hasAttribute("time")? "button":"button_invalid");
+ setClass(document.getElementById("dose_prev_button"), div.previousSibling? "button":"button_invalid");
+ setClass(document.getElementById("dose_next_button"), div.nextSibling? "button":"button_invalid");
  manual_param_to(row.labelinfo.model_at[time]? true: false);
  setTimeout('document.getElementById("dose").select();',10);
  Setting.input_selected = true;
@@ -1594,6 +1776,12 @@ function dose_input(x){
  document.getElementById("dose").focus();
  change_unit_val(null);
 }
+function set_time_now(){
+ var time = Date_now.getHours()*60 + Date_now.getMinutes();
+ document.getElementById("pop_up_overwriting").style.display
+ = (Setting.row.entry_at[time] == undefined || Setting.edit_div && time == Setting.edit_div.getAttribute("time") ) ? "none" : "inline";
+ document.getElementById("entry_time").value = min2hm(time);
+}
 function entry_time_c(dt){
  var time =  hm2min(document.getElementById("entry_time").value) + parseInt(dt);
  document.getElementById("pop_up_overwriting").style.display
@@ -1659,9 +1847,17 @@ function dose_done(){
  if(changed_model || !isNaN(dose)){
   Setting.row.add_data(time, dose, changed_model, div);
  }
+ var n;for(n=0;n<Row_list.length;n++){
+  var row = Row_list[n];
+DB2 = row;
+  if(row.labelinfo && row.labelinfo.preset_model_g == model_P_A2005 || row.TCI_model_g == model_P_A2005 ){
+   if( Current_patient.age>16 && row.labelarea_div.className == "labelarea_on" ) {
+    setClass(row.labelarea_div, "labelarea_off");
+ }}}
  dose_close();
  update_graph();
 }
+var DB2;
 function dose_close(){
  if(Setting.selected_agentunit_span){
   setClass(Setting.selected_agentunit_span, "button_wide");
@@ -1695,9 +1891,9 @@ function dose_prev(){
   edit_drug( div.previousSibling );
  }
  else{
-  var child_list = Setting.row.entrydose_div.childNodes;
+  var child_list = Setting.row.dosearea_div.childNodes;
   Setting.is_pop_up = false;
-  edit_drug( Setting.row.entrydose_div.lastChild );
+  edit_drug( Setting.row.dosearea_div.lastChild );
 }}
 function dose_next(){
  if(document.getElementById("dose_next_button").className == "button_invalid")return;
@@ -1863,6 +2059,8 @@ function disp_compart(model){
  document.getElementById("compline_info_13").style.left = m_left + L2 + CompLineWidth + L1 + "px";
  document.getElementById("compline_info_10").style.left = m_left + L2 + CompLineWidth + L1/2 - L10/2 + "px";
  document.getElementById("compline_info_in").style.left = m_left + L2 + CompLineWidth + L1/2 - L10/2 + "px";
+ document.getElementById("compequation").style.left = m_left + L2 + CompLineWidth + L1/2 - L10/2 + 80 + "px";
+// document.getElementById("compline_info_in").style.width is 80px
  document.getElementById("comp_inner_1").style.height = "0px";
  document.getElementById("comp_inner_2").style.height = "0px";
  document.getElementById("comp_inner_3").style.height = "0px";
@@ -1870,6 +2068,7 @@ function disp_compart(model){
  document.getElementById("compline_info_12").innerHTML = "";
  document.getElementById("compline_info_13").innerHTML = "";
  document.getElementById("compline_info_10").innerHTML = "";
+ document.getElementById("compequation").innerHTML = "";
 }
 function hide_compart(){
  document.getElementById("comp_2").style.left = "-999px";
@@ -1882,6 +2081,7 @@ function hide_compart(){
  document.getElementById("compline_12").style.left = "-999px";
  document.getElementById("compline_13").style.left = "-999px";
  document.getElementById("compline_10").style.left = "-999px";
+ document.getElementById("compequation").style.left = "-999px";
  document.getElementById("compline_info_12").style.left = "-999px";
  document.getElementById("compline_info_13").style.left = "-999px";
  document.getElementById("compline_info_10").style.left = "-999px";
@@ -1920,6 +2120,7 @@ function disp_compart_info(x0){
  document.getElementById("compline_info_13").innerHTML =  (flow13>=0?"→"+myPrecision(flow13):"←"+myPrecision(-flow13)) + unit + "/h";
  document.getElementById("compline_info_10").innerHTML = "↓" + myPrecision(flow10) + unit + "/h";
 }
+
 
 </script>
 <style>
@@ -1970,6 +2171,7 @@ input{
  top:10px;
  width: 250px;
  padding: 10px;
+ white-space: nowrap;
 }
 #PU_3_labelinfo{
  left:500px;
@@ -2080,12 +2282,10 @@ span .button_wide_selected{
  position: absolute;
  white-space: nowrap;
  cursor: pointer;
- background-color:#cccccc;
- border: 3px outset;
+ border: 3px inset;
 }
 .labelarea_off{
- background-color:#777777;
- border: 3px inset;
+ border: 3px outset;
 }
 
 .dose_each{
@@ -2127,10 +2327,11 @@ span .button_wide_selected{
 }
 #compline_12{}
 #compline_13{}
-#compline_10{
+#compline_10, #compequation{
  top:200px;
  height:50px;
 }
+
 
 #compart_label_container{
  position:absolute;
@@ -2189,7 +2390,8 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
    <span class="button_invalid" id="dose_prev_button" onclick="dose_prev();event.preventDefault();">prev</span>
    <span class="button_invalid" id="dose_next_button" onclick="dose_next();event.preventDefault();">next</span>
 <br>
-   Time: <input type="tel" id="entry_time" value=""> min
+   Time: <input type="tel" id="entry_time" value="">
+   <span class="button_wide" onclick="set_time_now();">Now</span>
    <span id="pop_up_overwriting">Overwriting</span>
 <br>
    <span class="button" onclick="entry_time_c(-10);">&lt;&lt;</span>
@@ -2227,7 +2429,7 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 <hr>
   Model:
   <span class="button_wide" id="entry_preset" onclick="manual_param_to(false);">Preset</span>
-  <span class="button_wide" id="entry_manual" onclick="manual_param_to(true);">Change</span>
+  <span class="button_wide" id="entry_manual" onclick="manual_param_to(true);">Edit</span>
   <div id="PU_manual_model">
    <div class="item" i="0">V1=<input onfocus="this.select();" oninput="manual_param(this);"><span onclick="preset_param(this);" class="button_wide">Preset</span><span onclick="previous_param(this,false);" class="button_wide">Previous</span></div>
    <div class="item" i="1">V2=<input onfocus="this.select();" oninput="manual_param(this);"><span onclick="preset_param(this);" class="button_wide">Preset</span><span onclick="previous_param(this,false);" class="button_wide">Previous</span></div>
@@ -2284,6 +2486,7 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
  <div class="compline_info" id="compline_info_12"></div>
  <div class="compline_info" id="compline_info_13"></div>
  <div class="compline_info" id="compline_info_10"></div>
+ <div class="compline_info" id="compequation"></div>
  <div id="comp_out"></div>
  <canvas id="canvas_2_cursor"></canvas>
  <div id="compart_label_container"></div>
@@ -2383,47 +2586,80 @@ where
 <li>k<sub>10</sub>=CL/V<sub>1</sub>, k<sub>12</sub>=Q<sub>2</sub>/V<sub>1</sub>, k<sub>13</sub>=Q<sub>3</sub>/V<sub>1</sub>, k<sub>21</sub>=Q<sub>2</sub>/V<sub>2</sub>, k<sub>31</sub>=Q<sub>3</sub>/V3 [min]</li>
 </ul>
 
-<h4>1. Simulation with constant infusion</h4>
+<h4>1. Calculate infusion rate in TCI (target-controlled infusion)</h4>
 
+In advance bolus V<sub>1</sub>  (<i>target</i> - C<sub>1</sub>) or wait to assume C<sub>1</sub> = <i>target</i> at t=0.<br>
+Then, <i>infusion</i> = k<sub>10</sub>  A<sub>1,equiv</sub> + k<sub>21</sub> c<sub>2</sub> exp(-k<sub>21</sub>t) + k<sub>31</sub> c<sub>3</sub> exp(-k<sub>31</sub>t), where<br>
+<ul>
+<li>A<sub>1,equiv</sub> = <i>target</i> * V<sub>1</sub></li>
+<li>A<sub>2,equiv</sub> = A<sub>1,equiv</sub> * k<sub>12</sub>/k<sub>21</sub></li>
+<li>A<sub>3,equiv</sub> = A<sub>1,equiv</sub> * k<sub>13</sub>/k<sub>31</sub></li>
+<li>c<sub>2</sub> = -k<sub>21</sub> (A<sub>2,t=0</sub> - A<sub>2,equiv</sub>)</li>
+<li>c<sub>3</sub> = -k<sub>31</sub> (A<sub>3,t=0</sub> - A<sub>3,equiv</sub>)</li>
+</ul>
+
+<h4>2. Simulate A<sub>1</sub>,A<sub>2</sub>,A<sub>3</sub></h4>
+
+We consider the case <i>infusion</i> = Σc<sub>i</sub> exp(K<sub>i</sub>t).<br>
+Since the system is linear, we deal with each term independently.<br>
 Let a<sub>k</sub>(k=1..3) be zeros of the characteristic polynomial:<br>
-X<sup>3</sup> + (k<sub>10</sub>+k<sub>12</sub>+k<sub>13</sub>+k<sub>21</sub>+k<sub>31</sub>)X<sup>2</sup> +(k<sub>10</sub>k<sub>21</sub>+k<sub>10</sub>k<sub>31</sub>+k<sub>12</sub>k<sub>31</sub>+k<sub>13</sub>k<sub>21</sub>+k<sub>21</sub>k<sub>31</sub>)X + k<sub>10</sub>k<sub>21</sub>k<sub>31</sub><br>
-Then, 
+p(X) = X<sup>3</sup> + (k<sub>10</sub>+k<sub>12</sub>+k<sub>13</sub>+k<sub>21</sub>+k<sub>31</sub>)X<sup>2</sup> +(k<sub>10</sub>k<sub>21</sub>+k<sub>10</sub>k<sub>31</sub>+k<sub>12</sub>k<sub>31</sub>+k<sub>13</sub>k<sub>21</sub>+k<sub>21</sub>k<sub>31</sub>)X + k<sub>10</sub>k<sub>21</sub>k<sub>31</sub><br>
+(a<sub>k</sub> can be proved to be negative and distinct provided that k<sub>ij</sub> are all positive.)<br>
+<br>
+2-1. K<sub>i</sub>=a<sub>k</sub> for some k.
+<ul>
+<li>A<sub>1</sub> = c<sub>i</sub>t exp(K<sub>i</sub>t) </li>
+<li>A<sub>2</sub> = c<sub>i</sub>t exp(K<sub>i</sub>t) k<sub>12</sub>/(a<sub>k</sub>+k<sub>21</sub>)</li>
+<li>A<sub>3</sub> = c<sub>i</sub>t exp(K<sub>i</sub>t) k<sub>13</sub>/(a<sub>k</sub>+k<sub>31</sub>)</li>
+</ul>
+
+2-2. K<sub>i</sub>≠a<sub>k</sub> and K<sub>i</sub>≠0
+<ul>
+<li>A<sub>1</sub> = c<sub>i</sub> exp(K<sub>i</sub>t) (K<sub>i</sub>+k21)(K<sub>i</sub>+k31)/p(K<sub>i</sub>)</li>
+<li>A<sub>2</sub> = c<sub>i</sub> exp(K<sub>i</sub>t) k12(K<sub>i</sub>+k31)/p(K<sub>i</sub>)</li>
+<li>A<sub>3</sub> = c<sub>i</sub> exp(K<sub>i</sub>t) k13(K<sub>i</sub>+k21)/p(K<sub>i</sub>)</li>
+</ul>
+
+2-3. K<sub>i</sub>=0 
 <ul>
 <li>A<sub>1</sub> = A<sub>1,equiv</sub> + Σ<sub>k=1..3</sub> b<sub>k</sub>  exp(a<sub>k</sub>t)</li>
 <li>A<sub>2</sub> = A<sub>2,equiv</sub> + Σ<sub>k=1..3</sub> b<sub>k</sub>  exp(a<sub>k</sub>t) k<sub>12</sub>/(a<sub>k</sub>+k<sub>21</sub>)</li>
 <li>A<sub>3</sub> = A<sub>3,equiv</sub> + Σ<sub>k=1..3</sub> b<sub>k</sub>  exp(a<sub>k</sub>t) k<sub>13</sub>/(a<sub>k</sub>+k<sub>31</sub>)</li>
-<li>C<sub>e</sub> = (A<sub>1,equiv</sub> + Σ<sub>k=1..3</sub> b<sub>k</sub>  exp(a<sub>k</sub>t) k<sub>e</sub>/(a<sub>k</sub>+k<sub>e</sub>) + b<sub>e</sub> exp(-k<sub>e</sub>t) ) / V1</li>
 </ul>
 where
 <ul>
-<li>A<sub>1,equiv</sub> = <i>infusion</i> / k<sub>10</sub></li>
+<li>A<sub>1,equiv</sub> = c<sub>i</sub> / k<sub>10</sub></li>
 <li>A<sub>2,equiv</sub> = A<sub>1,equiv</sub> * k<sub>12</sub>/k<sub>21</sub></li>
 <li>A<sub>3,equiv</sub> = A<sub>1,equiv</sub> * k<sub>13</sub>/k<sub>31</sub></li>
-<li>b<sub>k</sub>(k=1..3) and b<sub>e</sub> are determined by A<sub>1</sub>,A<sub>2</sub>,A<sub>3</sub>,C<sub>e</sub> at t=0</li>
+<li>b<sub>k</sub>(k=1..3) are determined to satisfy the initial condition</li>
 </ul>
 
-<h4>2. Similation with TCI (target-controlled infusion)</h4>
+<h4>3. simulate C<sub>e</sub> </h4>
 
-In advance bolus V<sub>1</sub>  (<i>target</i> - C<sub>1</sub>) or wait to obtain C<sub>1</sub> = <i>target</i> at t=0.
-Then,
-<ul>
-<li>A<sub>1</sub> = A<sub>1,equiv</sub></li>
-<li>A<sub>2</sub> = A<sub>2,equiv</sub> + b<sub>2</sub>  exp(-k<sub>21</sub>t)</li>
-<li>A<sub>3</sub> = A<sub>3,equiv</sub> + b<sub>3</sub>  exp(-k<sub>31</sub>t)</li>
-<li>C<sub>e</sub> = (A<sub>1,equiv</sub> + b<sub>e</sub>  exp(-k<sub>e</sub>t) ) / V1</li>
-<li><i>infusion</i> = k<sub>10</sub>  A<sub>1,equiv</sub> - k<sub>21</sub> b<sub>2</sub> exp(-k<sub>21</sub>t) - k<sub>31</sub> b<sub>3</sub> exp(-k<sub>31</sub>t)</li>
-</ul>
+We consider the case C<sub>1</sub> = Σc<sub>i,j</sub> t<sup>j</sup> exp(K<sub>i</sub>t)
+and deal with each term independently.<br>
+<br>
+3-1. K<sub>i</sub>=-k<sub>e</sub>.<br>
+<ul><li>
+C<sub>e</sub> = Σc<sub>i,j</sub>t<sup>j+1</sup> exp(K<sub>i</sub>t) k<sub>e</sub>/(j+1)<br>
+</li></ul>
+
+3-2. K<sub>i</sub>≠-k<sub>e</sub>.<br>
+<ul><li>
+C<sub>e</sub> = Σc<sub>i,j</sub>" t<sup>j</sup> exp(K<sub>i</sub>t)<br>
+</li></ul>
 where
 <ul>
-<li>A<sub>1,equiv</sub> = <i>target</i> * V1</li>
-<li>A<sub>2,equiv</sub> = A<sub>1,equiv</sub> * k<sub>12</sub>/k<sub>21</sub></li>
-<li>A<sub>3,equiv</sub> = A<sub>1,equiv</sub> * k<sub>13</sub>/k<sub>31</sub></li>
-<li>b<sub>2</sub>, b<sub>3</sub>, and b<sub>e</sub> are determined  by A<sub>2</sub>,A<sub>3</sub>,C<sub>e</sub> at t=0</li>
+<li>c<sub>i,j</sub>" = 0 if c<sub>i,j'</sub>=0 for all j'≧j </li>
+<li>c<sub>i,j</sub>" = c<sub>i,j</sub>' k<sub>e</sub>/(k<sub>e</sub>+K<sub>i</sub>)</li>
+<li>c<sub>i,j</sub>' = c<sub>i,j</sub> - (j+1)*c<sub>i,j+1</sub>"/ke</li>
 </ul>
 
-<h4>* Obtain k<sub>10</sub>,k<sub>12</sub>,k<sub>13</sub>,k<sub>21</sub>,k<sub>31</sub> from V<sub>1</sub>, V=V<sub>1</sub>+V<sub>2</sub>+V<sub>3</sub>, CL, and half-time t<sub>k</sub> (required in Doi,2014)</h4>
+3-3. Add term b<sub>e</sub> exp(-k<sub>e</sub>t) to satisfy the initial condition.
 
-a<sub>k</sub> = -ln2/t<sub>k</sub>(k=1..3) are the zeros of the characteristic polynomial above.<br>
+<h4>4. Obtain k<sub>10</sub>,k<sub>12</sub>,k<sub>13</sub>,k<sub>21</sub>,k<sub>31</sub> from V<sub>1</sub>, V=V<sub>1</sub>+V<sub>2</sub>+V<sub>3</sub>, CL, and half-time t<sub>k</sub> (required in Doi,2014)</h4>
+
+Let a<sub>k</sub> = -ln2/t<sub>k</sub>(k=1..3). They are the zeros of the characteristic polynomial p(X) defined above.<br>
 k<sub>10</sub>,k<sub>12</sub>,k<sub>13</sub>,k<sub>21</sub>,k<sub>31</sub> satisfy following equations:
 <ul>
 <li>k<sub>10</sub> = CL/V<sub>1</sub></li>
@@ -2441,6 +2677,12 @@ They can be obtained as:
 </div>
 <hr>
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
-2022/9/17 v1.2.3-alpha<br>
+2022/9/19 v1.3.0-dev<br>
+<!--
+* corrected TCI simulation
+* used Linexp
+* maked labelarea button to switch display
+* noticed parseInt(2e-7)=2, used Math.floor instead
+-->
 </div>
 </body></html>
