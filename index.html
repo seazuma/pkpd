@@ -639,6 +639,7 @@ function label_click(e){
   if( Current_patient.age>16 && row.labelarea_div.className == "labelarea_off" ) {
    alert("Model only valid for age≦16");return;
  }}
+ setClass(row.dosearea_div, div.className == "labelarea_off"? "dosearea": "dosearea_off");
  setClass(div, div.className == "labelarea_off"? "labelarea_on": "labelarea_off");
  update_graph();
 }
@@ -1877,6 +1878,7 @@ function dose_done(){
   if(row.labelinfo && row.labelinfo.preset_model_g == model_P_A2005 || row.TCI_model_g == model_P_A2005 ){
    if( Current_patient.age>16 && row.labelarea_div.className == "labelarea_on" ) {
     setClass(row.labelarea_div, "labelarea_off");
+    setClass(row.dosearea_div, "dosearea_off");
  }}}
  dose_close();
  update_graph();
@@ -2308,16 +2310,19 @@ span .button_wide_selected{
  position: absolute;
  z-index:10;
 }
-.dosearea, .dosearea_hover{
+.dosearea, .dosearea_hover, .dosearea_off{
  position: absolute;
  background-color:#ffeeaa;
  border: 1px solid black;
 }
 .dosearea:hover{
- background-color:#ddccff;
+ background-color:#ddffcc;
 }
 .dosearea_hover{
- background-color:#ddccff;
+ background-color:#ddffcc;
+}
+.dosearea_off{
+ background-color:#eeeeff;
 }
 
 .labelarea_on, .labelarea_off{
@@ -2328,6 +2333,7 @@ span .button_wide_selected{
 }
 .labelarea_off{
  border: 3px outset;
+ background-color: #eeffff;
 }
 
 .dose_each{
