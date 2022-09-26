@@ -4,4 +4,5 @@
 * Parameters of model can be changed during simulation
 
 Live at https://seazuma.github.io/pkpd/
-Usage at https://seazuma.github.io/pkpd/usage.html (Currently Japanese only)
+
+Usage at https://seazuma.github.io/pkpd/usage_jp.html (Currently Japanese only)
