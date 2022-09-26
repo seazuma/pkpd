@@ -1571,7 +1571,7 @@ function dosearea_touchstart(e){
 
 function dosearea_touchmove(e){
  e.preventDefault();
- var containerRect = d("row_container").getBoundingClientRect();
+ var containerRect = document.getElementById("row_container").getBoundingClientRect();
  var x = e.changedTouches[0].pageX - containerRect.left;
  var y = e.changedTouches[0].pageY - containerRect.top;
  var new_n = Math.floor(y/row_H);
@@ -1590,7 +1590,7 @@ function dosearea_touchend(e){
  var n = Touching_n;
  if(Row_arr[Touching_n]){
   setClass(Row_arr[Touching_n].dosearea_div, "dosearea");
-  var containerRect = d("row_container").getBoundingClientRect();
+  var containerRect = document.getElementById("row_container").getBoundingClientRect();
   var x = e.changedTouches[0].pageX - containerRect.left;
   var time =  x2t(x);
   add_drug(Touching_n,time);
@@ -1601,7 +1601,7 @@ function dosearea_touchend(e){
 /* mouseevent */
 
 function dosearea_click(e){
- var containerRect = d("row_container").getBoundingClientRect();
+ var containerRect = document.getElementById("row_container").getBoundingClientRect();
  var x = e.clientX - containerRect.left;
  var n = parseInt(e.target.getAttribute("n"));
  var time =  x2t(x);
@@ -1612,7 +1612,7 @@ function dosearea_mousemove(e){
   cursor_to( t2x( parseInt(e.target.getAttribute("time") )) ) ;
  }
  else{
-  var containerRect = d("row_container").getBoundingClientRect();
+  var containerRect = document.getElementById("row_container").getBoundingClientRect();
   cursor_to( e.clientX - containerRect.left );
 }}
 
