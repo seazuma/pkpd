@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>pkpd_demo</title>
+<script>
+function appear_disappear(x){ document.getElementById(x).style.display =  document.getElementById(x).style.display != "block"?"block":"none";}
+</script>
+<style>
+#usage, #model, #abbreviation, #formula{ display:none; }
+</style>
+</head><body>
+
+<h4>投与情報登録</h4>
+
+1.黄色いバーをクリック<br>
+2.薬剤名と投与方法（ボーラス・持続）を選択<br>
+3.必要に応じて時刻を変更し、投与量を入力し、OKボタンクリックあるいはEnterキー<br>
+（cancelボタンクリックあるいはEscキーで中止）<br>
+以上の操作で投与情報が登録され、薬物濃度が計算されます。<br>
+<br>
+既に登録した投与量に対応する数字をクリックすると投与情報を編集できます。<br>
+新規登録画面でprevボタンを押すことでも過去の投与情報を編集できます。<br>
+持続投与の中止には0を入力してください。<br>
+
+<h4>グラフ</h4>
+
+上画面：<br>
+　実線＝中心コンパートメント濃度（血中濃度）<br>
+　影＝効果部位濃度<br>
+下画面：<br>
+　赤＝中心コンパートメント濃度<br>
+　青＝速い蓄積コンパートメント濃度　<br>
+　緑＝遅い蓄積コンパートメント濃度　<br>
+<br>
+上画面左端に表示されるスケールは1目盛りあたりの濃度[ng/mL]を示します。<br>
+例えばプロポフォールの初期設定は1000なので、縦軸1目盛りは1000ng/mL=1µg/mLを示します。<br>
+このスケールは薬剤投与画面で変更可能です。<br>
+<br>
+上画面あるいは下画面の右上にあるボタンで横軸のスケールを変更できます。<br>
+上画面をドラッグすることで時間のスライドをすることもできます。<br>
+上画面をダブルクリックすると現在時刻に移動します。<br>
+<br>
+下画面の左端にあるボタンをクリックすると、下画面に表示するラベルを切り替えられます。<br>
+
+<h4>計算</h4>
+
+同じラベル名はまとめて計算されます。<br>
+異なるラベル名にすると区別して計算されます。<br>
+行の左端のラベルをクリックすると計算の有無を切り替えられます。<br>
+<br>
+持続投与の単位でTCIを選択可能です。<br>
+TCI計算用モデルと評価用モデルをそれぞれ選択可能です。<br>
+
+<h4>出力・読み込み</h4>
+↓output JSON data↓をクリックすると、登録情報をテキストエリアに出力します。<br>
+これを保存しておくことで例えば他の端末で↑load JSON data↑を使って復元できます。<br>
+<br>
+↓output concentration↓をクリックすると、設定した時間刻みでの薬物濃度を出力します。<br>
+
+<h4>その他の情報</h4>
+
+<a href="javascript:appear_disappear('model');">▼モデル▼</a>
+<div id="model">
+<ul>
+ <li>Propofol<ul>
+  <li> Eleveld, 2018 (using age,sex,height,weight) [PMID: 29661412] </li>
+  <li> Absalom, 2005 (using age,weight) (age≦16 only) (Peadfusor) [PMID: 15941735] </li>
+  <li> Marsh, 1991 (using weight) and applying ke=0.26 as in Diprifusor&copy; [PMID: 9640110]) </li>
+ </ul></li>
+ <li>Remimazolam<ul>
+  <li> Masui, 2022 (using age,sex,height,weight,ASA-PS) [PMID: 35708787] </li>
+  <li> Doi, 2014 (using weight) (ke unavailable) [日本臨床麻酔科学会誌 Vol.34 No.7 860-866, 2014] </li>
+ </ul></li>
+ <li>Ketamine<ul>
+  <li> Kamp, 2020 (using weight) (ke unavailable) [PMID: 32997732] </li>
+ </ul></li>
+ <li>Dexmedetomidine<ul>
+  <li> Morse, 2020 (using age,sex,height,weight) (ke unavailable) [PMID: 33126702] </li>
+   <li> Hannivoort, 2015 (using weight) (ke unavailable) [PMID: 26068206] </li>
+ </ul></li>
+ <li>Fentanyl<ul>
+  <li> Bae, 2020 (using weight) [PMID: 32861508] </li>
+  <li> Shafer, 1990 (using weight) [PMID: 2248388] </li>
+ </ul></li>
+ <li>Remifentanil<ul>
+ <li> Elevelt, 2017 (using age,sex,height,weight) [PMID: 28509794] </li>
+   <li> Kim, 2017 (using age,sex,height,weight) (ke unavailable) [PMID: 28509796] </li>
+   <li> Minto, 1997 (using age,sex,height,weight) [PMID: 9009935] </li>
+ </ul></li>
+ <li>Rocuronium<ul>
+  <li> Wierda, 1991 (using weight) (ke unavailable) [PMID: 1829656] </li>
+ </ul></li>
+ <li>Vecuronium<ul>
+  <li> Rupp, 1987 (using,weight) (younger [30-57] / older [70-84]) [PMID: 2886080] </li>
+ </ul></li>
+</ul>
+</div>
+<hr>
+<a href="javascript:appear_disappear('abbreviation');">▼略語▼</a>
+<div id="abbreviation">
+<ul>
+<li>IBW: ideal body weight: (used by Masui)<ul>
+ <li>45.4+0.89*(height-152.4)+4.5 for male</li>
+ <li>　45.4+0.89*(height-152.4) for female</li>
+</ul></li><li>ABW: adjusted body weight = IBW+0.4*(weight-IBW) (used by Masui)</li>
+<li>LBM: lean body mass: (used by Minto)<ul>
+ <li>1.1*weight-128*(weight/height)<sup>2</sup> for male</li>
+ <li>1.07*Weight-148*(weight/height)<sup>2</sup> for female</li>
+</ul></li><li>FFM<sub>j</sub>: fat free mass by Janmahasatian: (used by Kim)<ul>
+ <li>9270*weight/(6680+216*BMI) for male</li>
+ <li>9270*weight/(8780+244*BMI) for female</li>
+</ul></li><li>FFM<sub>AS</sub>: fat free mass by Al Sallami et al.: (used by Eleveld, Morse)<ul>
+ <li>(0.88+(1-0.88)/(1+(age/13.4)<sup>-12.7</sup>))*FFM<sub>j</sub> for male</li>
+ <li>(1.11+(1-1.11)/(1+(age/7.1)<sup>-1.1</sup>))*FFM<sub>j</sub> for female</li>
+</ul></li></ul>
+</div>
+<hr>
+
+<a href="javascript:appear_disappear('formula');">▼計算式▼</a>
+<div id="formula">
+<ul>
+<li>dA<sub>1</sub>/dt = <i>infusion</i>-CL*C<sub>1</sub>-Q<sub>2</sub>(C<sub>1</sub>-C<sub>2</sub>)-Q<sub>3</sub>(C<sub>1</sub>-C<sub>3</sub>) = <i>infusion</i>-(k<sub>10</sub>+k<sub>12</sub>+k<sub>13</sub>)A<sub>1</sub>+k<sub>21</sub>A<sub>2</sub>+k<sub>31</sub>A<sub>3</sub></li>
+<li>dA<sub>2</sub>/dt = Q<sub>2</sub>(C<sub>1</sub>-C<sub>2</sub>) = k<sub>12</sub>A<sub>1</sub>-k<sub>21</sub>A<sub>2</sub></li>
+<li>dA<sub>3</sub>/dt = Q<sub>3</sub>(C<sub>1</sub>-C<sub>3</sub>) = k<sub>13</sub>A<sub>1</sub>-k<sub>31</sub>A<sub>3</sub></li>
+<li>dC<sub>e</sub>/dt = k<sub>e</sub>(C<sub>1</sub>-C<sub>e</sub>)</li>
+</ul>
+where
+<ul>
+<li>A<sub>1</sub>,A<sub>2</sub>,A<sub>3</sub>: amount [mg] </li>
+<li>C<sub>1</sub>,C<sub>2</sub>,C<sub>3</sub>,C<sub>e</sub>: concentration [mg/L] (C<sub>k</sub>=A<sub>k</sub>/V<sub>k</sub>)</li>
+<li>V<sub>1</sub>,V<sub>2</sub>,V<sub>3</sub>: volume [L]</li>
+<li>CL,Q<sub>2</sub>,Q<sub>3</sub>: clearance [L/min]</li>
+<li>k<sub>10</sub>=CL/V<sub>1</sub>, k<sub>12</sub>=Q<sub>2</sub>/V<sub>1</sub>, k<sub>13</sub>=Q<sub>3</sub>/V<sub>1</sub>, k<sub>21</sub>=Q<sub>2</sub>/V<sub>2</sub>, k<sub>31</sub>=Q<sub>3</sub>/V3 [min]</li>
+</ul>
+
+<h4>1. Calculate infusion rate in TCI (target-controlled infusion)</h4>
+
+In advance bolus V<sub>1</sub>  (<i>target</i> - C<sub>1</sub>) or wait to assume C<sub>1</sub> = <i>target</i> at t=0.<br>
+Then, <i>infusion</i> = k<sub>10</sub>  A<sub>1,equiv</sub> + k<sub>21</sub> c<sub>2</sub> exp(-k<sub>21</sub>t) + k<sub>31</sub> c<sub>3</sub> exp(-k<sub>31</sub>t), where<br>
+<ul>
+<li>A<sub>1,equiv</sub> = <i>target</i> * V<sub>1</sub></li>
+<li>A<sub>2,equiv</sub> = A<sub>1,equiv</sub> * k<sub>12</sub>/k<sub>21</sub></li>
+<li>A<sub>3,equiv</sub> = A<sub>1,equiv</sub> * k<sub>13</sub>/k<sub>31</sub></li>
+<li>c<sub>2</sub> = -k<sub>21</sub> (A<sub>2,t=0</sub> - A<sub>2,equiv</sub>)</li>
+<li>c<sub>3</sub> = -k<sub>31</sub> (A<sub>3,t=0</sub> - A<sub>3,equiv</sub>)</li>
+</ul>
+
+<h4>2. Simulate A<sub>1</sub>,A<sub>2</sub>,A<sub>3</sub></h4>
+
+Let a<sub>1</sub>,a<sub>2</sub>,a<sub>3</sub> be zeros of the characteristic polynomial:<br>
+p(X) = X<sup>3</sup> + (k<sub>10</sub>+k<sub>12</sub>+k<sub>13</sub>+k<sub>21</sub>+k<sub>31</sub>)X<sup>2</sup> +(k<sub>10</sub>k<sub>21</sub>+k<sub>10</sub>k<sub>31</sub>+k<sub>12</sub>k<sub>31</sub>+k<sub>13</sub>k<sub>21</sub>+k<sub>21</sub>k<sub>31</sub>)X + k<sub>10</sub>k<sub>21</sub>k<sub>31</sub><br>
+(We have -k<sub>10</sub>-k<sub>12</sub>-k<sub>13</sub>-k<sub>21</sub>-k<sub>31</sub> &lt;a<sub>3</sub> &lt; min(-k<sub>21</sub>,-k<sub>31</sub>) ≦ a<sub>2</sub> ≦ max(-k<sub>21</sub>,-k<sub>31</sub>) &lt; a<sub>1</sub> &lt; 0 if k<sub>ij</sub> are all positive.)<br>
+<br>
+2-1. Let <i>infusion</i> = Σc<sub>i</sub> exp(k<sub>i</sub>t). Since the system is linear, we deal with each term independently.<br>
+2-1-1. k<sub>i</sub> = a<sub>1</sub> (Similar for k<sub>i</sub>=a<sub>2</sub>,a<sub>3</sub>)
+<ul>
+<li>A<sub>1</sub> = c<sub>i</sub> (a<sub>10</sub>+ta<sub>11</sub>) exp(k<sub>i</sub>t) </li>
+<li>A<sub>2</sub> = c<sub>i</sub> (a<sub>10</sub>+ta<sub>11</sub>) exp(k<sub>i</sub>t) </li>
+<li>A<sub>3</sub> = c<sub>i</sub> (a<sub>10</sub>+ta<sub>11</sub>) exp(k<sub>i</sub>t) </li>
+</ul>
+where
+<ul>
+<li> a<sub>10</sub> = (k<sub>21</sub>+a<sub>2</sub>)(k<sub>31</sub>+a<sub>2</sub>) / (a<sub>3</sub>-a<sub>2</sub>)(a<sub>2</sub>-a<sub>1</sub>)<sup>2</sup> - (k<sub>21</sub>+a<sub>3</sub>)(k<sub>31</sub>+a<sub>3</sub>) / (a<sub>3</sub>-a<sub>2</sub>)(a<sub>3</sub>-a<sub>1</sub>)<sup>2</sup></li>
+<li> a<sub>20</sub> =  k<sub>21</sub>(k<sub>31</sub>+a<sub>2</sub>) / (a<sub>3</sub>-a<sub>2</sub>)(a<sub>2</sub>-a<sub>1</sub>)<sup>2</sup> - k<sub>21</sub>(k<sub>31</sub>+a<sub>3</sub>) / (a<sub>3</sub>-a<sub>2</sub>)(a<sub>3</sub>-a<sub>1</sub>)<sup>2</sup></li>
+<li> a<sub>30</sub> = (k<sub>21</sub>+a<sub>2</sub>)k<sub>13</sub> / (a<sub>3</sub>-a<sub>2</sub>)(a<sub>2</sub>-a<sub>1</sub>)<sup>2</sup> - (k<sub>21</sub>+a<sub>3</sub>)k<sub>13</sub> / (a<sub>3</sub>-a<sub>2</sub>)(a<sub>3</sub>-a<sub>1</sub>)<sup>2</sup></li>
+<li> a<sub>11</sub> = (k<sub>21</sub>*a<sub>1</sub>)(k<sub>31</sub>+a<sub>1</sub>) / (a<sub>2</sub>-a<sub>1</sub>)(a<sub>3</sub>-a<sub>1</sub>) </li>
+<li> a<sub>21</sub> = k<sub>12</sub>(k<sub>31</sub>+a<sub>1</sub>) / (a<sub>2</sub>-a<sub>1</sub>)(a<sub>3</sub>-a<sub>1</sub>) </li>
+<li> a<sub>31</sub> = k<sub>13</sub>(k<sub>31</sub>+a<sub>1</sub>) / (a<sub>2</sub>-a<sub>1</sub>)(a<sub>3</sub>-a<sub>1</sub>) </li>
+</ul>
+2-1-2. k<sub>i</sub>≠a<sub>1</sub>,a<sub>2</sub>,a<sub>3</sub>
+<ul>
+<li>A<sub>1</sub> = c<sub>i</sub> exp(k<sub>i</sub>t) (k<sub>i</sub>+k<sub>21</sub>)(k<sub>i</sub>+k<sub>31</sub>)/p(k<sub>i</sub>)</li>
+<li>A<sub>2</sub> = c<sub>i</sub> exp(k<sub>i</sub>t) k<sub>12</sub>(k<sub>i</sub>+k<sub>31</sub>)/p(k<sub>i</sub>)</li>
+<li>A<sub>3</sub> = c<sub>i</sub> exp(k<sub>i</sub>t) k<sub>13</sub>(k<sub>i</sub>+k<sub>21</sub>)/p(k<sub>i</sub>)</li>
+</ul>
+
+2-2. Add following terms with appropriate b<sub>1</sub>,b<sub>2</sub>,b<sub>3</sub> to satisfy the initial condition.<br>
+2-2-1. k<sub>21</sub> = k<sub>31</sub> (In this case, a<sub>2</sub> = -k<sub>21</sub>)
+<ul>
+<li>A<sub>1</sub> = Σ<sub>k=1,3</sub> b<sub>k</sub>  exp(a<sub>k</sub>t)</li>
+<li>A<sub>2</sub> = b<sub>2</sub> exp(a<sub>2</sub>t) + Σ<sub>k=1,3</sub> b<sub>k</sub>  exp(a<sub>k</sub>t) k<sub>12</sub>/(a<sub>k</sub>+k<sub>21</sub>)</li>
+<li>A<sub>3</sub> = - b<sub>2</sub> exp(a<sub>2</sub>t) + Σ<sub>k=1,3</sub> b<sub>k</sub>  exp(a<sub>k</sub>t) k<sub>13</sub>/(a<sub>k</sub>+k<sub>31</sub>)</li>
+</ul>
+2-2-2. k<sub>21</sub> ≠ k<sub>31</sub> (In this case, -k<sub>31</sub> ≠ a<sub>k</sub> ≠ -k<sub>21</sub>)
+<ul>
+<li>A<sub>1</sub> = Σ<sub>k=1,2,3</sub> b<sub>k</sub>  exp(a<sub>k</sub>t)</li>
+<li>A<sub>2</sub> = Σ<sub>k=1,2,3</sub> b<sub>k</sub>  exp(a<sub>k</sub>t) k<sub>12</sub>/(a<sub>k</sub>+k<sub>21</sub>)</li>
+<li>A<sub>3</sub> = Σ<sub>k=1,2,3</sub> b<sub>k</sub>  exp(a<sub>k</sub>t) k<sub>13</sub>/(a<sub>k</sub>+k<sub>31</sub>)</li>
+</ul>
+
+<h4>3. Simulate C<sub>e</sub> </h4>
+
+3-1. Let C<sub>1</sub> = Σc<sub>i,j</sub> t<sup>j</sup> exp(k<sub>i</sub>t). Deal with each term independently.<br>
+
+3-1-1. k<sub>i</sub> = -k<sub>e</sub><br>
+<ul><li>
+C<sub>e</sub> = Σc<sub>i,j</sub>t<sup>j+1</sup> exp(k<sub>i</sub>t) k<sub>e</sub>/(j+1)<br>
+</li></ul>
+
+3-1-2. k<sub>i</sub>≠-k<sub>e</sub><br>
+<ul><li>
+C<sub>e</sub> = Σc<sub>i,j</sub>" t<sup>j</sup> exp(k<sub>i</sub>t)<br>
+</li></ul>
+where
+<ul>
+<li>c<sub>i,j</sub>" = 0 if c<sub>i,j'</sub>=0 for all j'≧j </li>
+<li>c<sub>i,j</sub>" = c<sub>i,j</sub>' k<sub>e</sub>/(k<sub>e</sub>+k<sub>i</sub>)</li>
+<li>c<sub>i,j</sub>' = c<sub>i,j</sub> - (j+1)*c<sub>i,j+1</sub>"/ke</li>
+</ul>
+
+3-2. Add term b<sub>e</sub> exp(-k<sub>e</sub>t) with appropriate b<sub>e</sub> to satisfy the initial condition.
+
+<h4>4. Obtain k<sub>10</sub>,k<sub>12</sub>,k<sub>13</sub>,k<sub>21</sub>,k<sub>31</sub> from V<sub>1</sub>, V=V<sub>1</sub>+V<sub>2</sub>+V<sub>3</sub>, CL, and half-time t<sub>k</sub> (required in Doi,2014)</h4>
+
+Let a<sub>k</sub> = -ln2/t<sub>k</sub>(k=1..3). They are the zeros of the characteristic polynomial p(X) defined above.<br>
+k<sub>10</sub>,k<sub>12</sub>,k<sub>13</sub>,k<sub>21</sub>,k<sub>31</sub> satisfy following equations:
+<ul>
+<li>k<sub>10</sub> = CL/V<sub>1</sub></li>
+<li>1 + k<sub>12</sub>/k<sub>21</sub> + k<sub>13</sub>/k<sub>31</sub> = V/V1</li>
+<li>k<sub>10</sub>+k<sub>12</sub>+k<sub>13</sub>+k<sub>21</sub>+k<sub>31</sub> = - (a<sub>1</sub>+a<sub>2</sub>+a<sub>3</sub>)</li>
+<li>k<sub>10</sub>k<sub>21</sub>+k<sub>10</sub>k<sub>31</sub>+k<sub>12</sub>k<sub>31</sub>+k<sub>13</sub>k<sub>21</sub>+k<sub>21</sub>k<sub>31</sub> = a<sub>1</sub>a<sub>2</sub>+a<sub>2</sub>a<sub>3</sub>+a<sub>3</sub>a<sub>1</sub></li>
+<li>k<sub>10</sub>k<sub>21</sub>k<sub>31</sub> = - a<sub>1</sub>a<sub>2</sub>a<sub>3</sub></li>
+</ul>
+They can be obtained as:
+<ul>
+<li>k<sub>21</sub>,k<sub>31</sub> are the roots of X<sup>2</sup>-(V<sub>1</sub>/CL)(V/CL*a<sub>1</sub>a<sub>2</sub>a<sub>3</sub>+a<sub>1</sub>a<sub>2</sub>+a<sub>2</sub>a<sub>3</sub>+a<sub>3</sub>a<sub>1</sub>)X-V<sub>1</sub>/CL*a<sub>1</sub>a<sub>2</sub>a<sub>3</sub> = 0</li>
+<li>k<sub>12</sub> = -(k<sub>21</sub>+a<sub>1</sub>)(k<sub>21</sub>+a<sub>2</sub>)(k<sub>21</sub>+a<sub>3</sub>) / (k<sub>21</sub><sup>2</sup>+V<sub>1</sub>/CL*a<sub>1</sub>a<sub>2</sub>a<sub>3</sub>)</li>
+<li>k<sub>13</sub> = -(k<sub>31</sub>+a<sub>1</sub>)(k<sub>31</sub>+a<sub>2</sub>)(k<sub>31</sub>+a<sub>3</sub>) / (k<sub>31</sub><sup>2</sup>+V<sub>1</sub>/CL*a<sub>1</sub>a<sub>2</sub>a<sub>3</sub>)</li>
+</ul>
+</div>
+
+<hr>
+<h4>バージョン履歴</h4>
+2022/8/16; v1.0.0<br>
+2022/8/30; v1.1.0; モデル追加、単位選択追加など<br>
+2022/9/5; v1.2.0; TCI計算追加など<br>
+2022/9/21; v1.3.0; レイアウト調整、数式表示追加など<br>
+2022/9/26; v1.4.0; JSON入出力追加など<br>
+<hr>
+<a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
+
+</body></html>
