@@ -14,7 +14,7 @@
 
 var Accuracy = 0.000001;
 
-var H = 280, W = 750, O_x = 100, O_y = 30;
+var H = 280, W = 750, O_x = 150, O_y = 30;
 var row_H = 30;
 var cAX1 = "#666666", cAX2 = "#aaaaaa"; // axis color
 var cCH = "#333333"; // char color
@@ -29,6 +29,7 @@ var CompLineWidth = 80;
 var Date_now = new Date();
 var Canvas_common = {
  is_moving: false,
+ y_scale: 0, // 1st line = Math.pow(2,y_scale)
  t_scale_150: 60, // time[min] per 150 px
  t_scale: 0.2, // time[min] per px
  t1: Date_now.getHours()*60, // time at origin
@@ -168,7 +169,7 @@ var model_RMZ_M2022 = function(patient){ // Masui, 2022
  var V1 = theta[1]*ABW/67.3;
  var V2 = theta[2]*ABW/67.3;
  var V3 = (theta[3]+theta[8]*(age-54))*ABW/67.3;
- var CL = (theta[4]+theta[9]*sex*theta[10]*high_ASA) * Math.pow(ABW/67.3,0.75);
+ var CL = (theta[4]+theta[9]*sex*theta[10]*(high_ASA?1:0)) * Math.pow(ABW/67.3,0.75);
  var Q2 = theta[5] * Math.pow(ABW/67.3,0.75);
  var Q3 = theta[6] * Math.pow(ABW/67.3,0.75);
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,0.22);
@@ -1217,12 +1218,14 @@ function canvas_ready(){
  canvas_1_cursor = document.getElementById('canvas_1_cursor'); // mouse_event, dynamic layer
  canvas_2 = document.getElementById('canvas_2'); // compartment
  canvas_2_cursor = document.getElementById('canvas_2_cursor');
+/*
  canvas_1_cursor.onclick = function(e){
   var MouseRect = e.target.getBoundingClientRect();
   var x = e.clientX - MouseRect.left;
   var y = e.clientY - MouseRect.top;
-  canvas1_cross( x,y, true );
+  canvas1_cross( x,y, !Canvas1CrossFix );
  };
+*/
  canvas_1_cursor.ondblclick = function(e){
   scale_now();
  };
@@ -1293,7 +1296,7 @@ function draw_moving_x_axis(ctx, dx){
  if(Compart.div){
   for(xi=0;xi<xN;xi++){
    x_arr[xi] = Canvas_common.x_arr[xi] + dx;
-   y_arr[xi] = Math.floor(H-O_y-Compart.C1[xi]*1000*50/LabelInfoList[Compart.div.innerHTML].y_scale_50);
+   y_arr[xi] = Math.floor(H-O_y-Compart.C1[xi]*1000*50/LabelInfoList[Compart.div.innerHTML].y_scale_50/Math.pow(2,Canvas_common.y_scale));
  }}
  ctx.strokeStyle = "#636363";
  plot_graph(ctx, x_arr, y_arr);
@@ -1331,8 +1334,8 @@ function update_graph(){
   var y1e_arr = [[],[]];
   var xi,xN = Canvas_common.x_arr.length;
   for(xi=0;xi<xN;xi++){
-   y1e_arr[0].push( Math.floor(H-O_y-C1e_arr[0][xi]*1000*50/labelinfo.y_scale_50) );
-   y1e_arr[1].push( Math.floor(H-O_y-C1e_arr[1][xi]*1000*50/labelinfo.y_scale_50) );
+   y1e_arr[0].push( Math.floor(H-O_y-C1e_arr[0][xi]*1000*50/labelinfo.y_scale_50/Math.pow(2,Canvas_common.y_scale)) );
+   y1e_arr[1].push( Math.floor(H-O_y-C1e_arr[1][xi]*1000*50/labelinfo.y_scale_50/Math.pow(2,Canvas_common.y_scale)) );
   }
   ctx_1.strokeStyle = labelinfo.color;
   ctx_1.fillStyle = labelinfo.color;
@@ -1343,8 +1346,8 @@ function update_graph(){
   if( showCompart ){
    var y2_arr = [], y3_arr = [];
    for(xi=0;xi<xN;xi++){
-    y2_arr.push( Math.floor(H-O_y-Compart.C2[xi]*1000*50/labelinfo.y_scale_50) );
-    y3_arr.push( Math.floor(H-O_y-Compart.C3[xi]*1000*50/labelinfo.y_scale_50) );
+    y2_arr.push( Math.floor(H-O_y-Compart.C2[xi]*1000*50/labelinfo.y_scale_50/Math.pow(2,Canvas_common.y_scale)) );
+    y3_arr.push( Math.floor(H-O_y-Compart.C3[xi]*1000*50/labelinfo.y_scale_50/Math.pow(2,Canvas_common.y_scale)) );
    }
    ctx_2.strokeStyle = Compart_color_arr[0];
    plot_graph(ctx_2, Canvas_common.x_arr, y1e_arr[0]);
@@ -1374,7 +1377,7 @@ function draw_axis(ctx){
   ctx.moveTo( O_x, H - O_y - y );
   ctx.lineTo( W, H - O_y - y );
   ctx.stroke();
-  ctx.fillText( y/50, O_x - 15, H - O_y - y);
+  ctx.fillText( (y/50) * Math.pow(2,Canvas_common.y_scale) , O_x - 15, H - O_y - y);
 }}
 function plot_graph(ctx, x_arr, y_arr){ // set ctx_1.strokeStyle before this
  ctx.beginPath();
@@ -1412,15 +1415,15 @@ function scale_short(){
  else if(t_scale_150==3*60){ t_scale_150 = 60; }
  else if(t_scale_150==7*24*60){ t_scale_150 = 4*24*60; }
  else{ t_scale_150 /= 2;}
+/*
  var t_now = Date_now.getHours()*60 + Date_now.getMinutes();
  if(Canvas_common.t0 <= t_now && t_now <= Canvas_common.t2){
   Canvas_common.t_scale_150 = t_scale_150;
   scale_now();
  }
- else{
-  t1 = Math.floor(Canvas_common.t1/t_scale_150)*t_scale_150;
-  update_x_axis(t1, t_scale_150);
- }
+*/
+ t1 = Math.floor(Canvas_common.t1/t_scale_150)*t_scale_150;
+ update_x_axis(t1, t_scale_150);
  document.getElementById("x_scale_setting_1").children[1].innerHTML = "-";
  document.getElementById("x_scale_setting_2").children[1].innerHTML = "-";
  if(t_scale_150==1){
@@ -1436,15 +1439,15 @@ function scale_long(){
  else if(t_scale_150==8*60){ t_scale_150 = 24*60; }
  else if(t_scale_150==4*24*60){ t_scale_150 = 7*24*60; }
  else{ t_scale_150 *= 2;}
+/*
  var t_now = Date_now.getHours()*60 + Date_now.getMinutes();
  if(Canvas_common.t0 <= t_now && t_now <= Canvas_common.t2){
   Canvas_common.t_scale_150 = t_scale_150;
   scale_now();
  }
- else{
-  t1 = Math.floor(Canvas_common.t1/t_scale_150)*t_scale_150;
-  update_x_axis(t1, t_scale_150);
- }
+*/
+ t1 = Math.floor(Canvas_common.t1/t_scale_150)*t_scale_150;
+ update_x_axis(t1, t_scale_150);
  document.getElementById("x_scale_setting_1").children[0].innerHTML = "+";
  document.getElementById("x_scale_setting_2").children[0].innerHTML = "+";
  if(t_scale_150 == 7*24*60){
@@ -1471,6 +1474,16 @@ function scale_next(){
  document.getElementById("x_scale_setting_1").children[3].innerHTML = "&lt;";
  document.getElementById("x_scale_setting_2").children[3].innerHTML = "&lt;";
 }
+
+function yscale_short(){
+ Canvas_common.y_scale--;
+ update_graph();
+}
+function yscale_long(){
+ Canvas_common.y_scale++;
+ update_graph();
+}
+
 
 /* touchevent */
 
@@ -1541,7 +1554,20 @@ function canvas1_cross( x,y,b ){
  ctx_2_cursor.clearRect(0, 0, W, H);
  ctx_2_cursor.beginPath(); ctx_2_cursor.moveTo(x, 0); ctx_2_cursor.lineTo(x, H); ctx_2_cursor.stroke();
  disp_compart_info(x);
+ var t = x2t(x), count = 0;
+ for(label in LabelInfoList){
+  var labelinfo = LabelInfoList[label];
+  var C = labelinfo.simulate_t_arr([t]);
+  var unit = labelinfo.y_scale_50>10?1000:1;
+  ctx_1_cursor.fillStyle = labelinfo.color;
+  var txt = label + ":Cp=" + myPrecision(C.C1_ng_mL/unit);
+  if(C.Ce_ng_mL!=0){ txt += ",Ce=" + myPrecision(C.Ce_ng_mL/unit); }
+  txt += unit==1000?"[μg/mL]":"[ng/mL]";
+  ctx_1_cursor.fillText(txt , x+3, y-3 - (count)*18);
+  count++;
+ }
 }
+
 function canvas2_cross( x,y,b ){
  if (x<0 || x>W || y<0 || y>H){ delete_cursor(); return;}
  ctx_1_cursor.lineWidth = 1; // or 0.5?
@@ -1558,6 +1584,19 @@ function canvas2_cross( x,y,b ){
  ctx_2_cursor.fillText( min2hm(x2t(x)), x+1, H);
  ctx_2_cursor.fillText( myPrecision((H-O_y-y)/50), O_x-15, y-1);
  disp_compart_info(x);
+ if(Compart.div){
+  var labelinfo = LabelInfoList[Compart.div.innerHTML];
+  var t = x2t(x), count = 0;
+  var C = labelinfo.simulate_t_arr([t]);
+  var unit = labelinfo.y_scale_50>10?1000:1;
+  var i;for(i=0;i<3;i++){
+   ctx_2_cursor.fillStyle = Compart_color_arr[i];
+   var txt = "C"+(1+i)+"=" + myPrecision(C["C"+(1+i)+"_ng_mL"]/unit);
+   txt += unit==1000?"μg/mL":"[ng/mL]";
+   ctx_2_cursor.fillText(txt , x+3, y-3 - (2-i)*18);
+  }
+  count++;
+ }
 }
 
 var Touching_n = -1;
@@ -1774,14 +1813,14 @@ function select_drug(button_div){
  }
  change_unit_val(null);
 /* check previous model */
- document.getElementById("entry_preset").innerHTML = "Preset";
+// document.getElementById("entry_preset").innerHTML = "Preset";
  var ti,t_prev = hm2min(document.getElementById("entry_time").value)
  var t_arr = Setting.temp_labelinfo.model_arr;
  for(ti=t_arr.length-1;ti>=0;ti--){
   if(t_arr[ti] > t_prev)continue;
   var model = Setting.temp_labelinfo.model_at[t_arr[ti]];
   if(model){
-   document.getElementById("entry_preset").innerHTML = "Previous";
+//   document.getElementById("entry_preset").innerHTML = "Previous";
    Setting.previous_model = model;
    break;
   }
@@ -2069,9 +2108,12 @@ function delete_row(n){
 
 var param_arr = ["V1","V2","V3","CL","Q2","Q3","ke"];
 
+function manual_param_switch(){
+ manual_param_to(!Setting.change_model);
+}
 function manual_param_to(b){
- setClass( document.getElementById("entry_manual"), b? "button_wide_selected": "button_wide")
- setClass( document.getElementById("entry_preset"), b? "button_wide": "button_wide_selected")
+// setClass( document.getElementById("entry_manual"), b? "button_wide_selected": "button_wide")
+// setClass( document.getElementById("entry_preset"), b? "button_wide": "button_wide_selected")
  Setting.change_model = b;
  if(!b){
   disappear("PU_manual_model");
@@ -2118,7 +2160,6 @@ function previous_param(div){
 var Compart = {
  O_y_top: 5,
  div: null,
- label: "",
  C1:[], C2:[], C3:[], infusion_rate:[], model:[], total:[],
  C1expr:[], C2expr:[], C3expr:[], Ciexpr:[], Ceexpr:[]
 }
@@ -2305,7 +2346,7 @@ function output_data(){
 function load_data(){
  var temp_object;
  try{
-  temp_object = JSON.parse(d("output_data_area").value.replace(/[\n\r]/g, ""));
+  temp_object = JSON.parse(document.getElementById("output_data_area").value.replace(/[\n\r]/g, ""));
  } catch(e){
   alert(e);
   return;
@@ -2437,13 +2478,19 @@ input{
 }
 #area1, #area2{ position:relative;}
 #area2{ margin-top:20px; }
-#x_scale_setting_1, #x_scale_setting_2{
+#x_scale_setting_1, #x_scale_setting_2, #y_scale_setting_1, #y_scale_setting_2 {
  position:absolute;
  border: solid 2px #666666;
  background-color:#dddddd;
  top:-5px;
  left:650px;
  white-space: nowrap;
+}
+#y_scale_setting_1{
+ left:0px;
+}
+#y_scale_setting_2{
+ left:0px;
 }
 
 .form, .form_minor{
@@ -2532,7 +2579,7 @@ span .button_wide_selected{
  display:none;
 }
 
-.button, .button_invalid, .x_scale_button{
+.button, .button_invalid, .x_scale_button, .y_scale_button{
  display: inline-block;
  text-align: center;
  width: 40px;
@@ -2549,7 +2596,7 @@ span .button_wide_selected{
  background-color:#777777;
  border: 3px inset;
 }
-.x_scale_button{
+.x_scale_button, .y_scale_button{
  z-index:12;
  background-color:#cccccc;
  cursor: pointer;
@@ -2557,6 +2604,10 @@ span .button_wide_selected{
  line-height: 36px;
  border: 3px outset;
  margin: 3px;
+}
+.y_scale_button{
+ border: 3px outset;
+ margin: 2px;
 }
 
 #row_container{
@@ -2583,10 +2634,12 @@ span .button_wide_selected{
  white-space: nowrap;
  cursor: pointer;
  border: 3px inset;
+ left:20px; 
 }
 .labelarea_off{
  border: 3px outset;
  background-color: #eeffff;
+ left:0px;
 }
 
 .dose_each{
@@ -2633,7 +2686,7 @@ span .button_wide_selected{
 
 #compart_label_container{
  position:absolute;
- top:20px;
+ top:50px;
  z-index:5;
 }
 .comp_info{
@@ -2649,6 +2702,8 @@ span .button_wide_selected{
 #compequation, #compequation_inner{
  display:none;
 }
+
+#usage, #model, #abbreviation, #formula{ display:none; }
 
 </style>
 </head>
@@ -2666,10 +2721,13 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
  <canvas id="canvas_1_cursor"></canvas>
  <div id="row_container"></div>
 
-<!-- x-scale -->
+<!-- scale -->
  <form id="x_scale_setting_1">
   <span class="x_scale_button" onclick="scale_short();">+</span><span class="x_scale_button" onclick="scale_long();">-</span> <br>
   <span class="x_scale_button" onclick="scale_prev();">&lt;</span><span class="x_scale_button" onclick="scale_next();">&gt;</span>
+ </form>
+ <form id="y_scale_setting_1">
+  <span class="y_scale_button" onclick="yscale_short();">+</span><span class="y_scale_button" onclick="yscale_long();">-</span>
  </form>
 
 <!-- pop up 1 -->
@@ -2725,8 +2783,11 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
   </form>
 <hr>
   Model:
+  <a href="javascript:manual_param_switch();">▼Edit model▼</a>
+<!--
   <span class="button_wide" id="entry_preset" onclick="manual_param_to(false);">Preset</span>
   <span class="button_wide" id="entry_manual" onclick="manual_param_to(true);">Edit</span>
+-->
   <div id="PU_manual_model">
    <div class="item" i="0">V1=<input type="tel" onfocus="this.select();" oninput="manual_param(this);"><span onclick="preset_param(this);" class="button_wide">Preset</span><span onclick="previous_param(this,false);" class="button_wide">Previous</span></div>
    <div class="item" i="1">V2=<input type="tel" onfocus="this.select();" oninput="manual_param(this);"><span onclick="preset_param(this);" class="button_wide">Preset</span><span onclick="previous_param(this,false);" class="button_wide">Previous</span></div>
@@ -2794,6 +2855,9 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
   <span class="x_scale_button" onclick="scale_short();">+</span><span class="x_scale_button" onclick="scale_long();">-</span> <br>
   <span class="x_scale_button" onclick="scale_prev();">&lt;</span><span class="x_scale_button" onclick="scale_next();">&gt;</span>
  </form>
+ <form id="y_scale_setting_2">
+  <span class="y_scale_button" onclick="yscale_short();">+</span><span class="y_scale_button" onclick="yscale_long();">-</span>
+ </form>
 </div>
 <hr>
 
@@ -2807,12 +2871,134 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 <br>
 
 <textarea id="output_conc_area" rows="5" wrap="off"></textarea>
+<hr>
+
+<a href="javascript:appear_disappear('usage');">▼説明▼</a>
+<div id="usage">
+
+<h4>投与情報登録</h4>
+
+1.黄色いバーをクリック<br>
+2.薬剤名と投与方法（ボーラス・持続）を選択<br>
+3.必要に応じて時刻を変更し、投与量を入力し、OKボタンクリックあるいはEnterキー<br>
+（cancelボタンクリックあるいはEscキーで中止）<br>
+以上の操作で投与情報が登録され、薬物濃度が計算されます。<br>
+<br>
+既に登録した投与量に対応する数字をクリックすると投与情報を編集できます。<br>
+新規登録画面でprevボタンを押すことでも過去の投与情報を編集できます。<br>
+持続投与の中止には0を入力してください。<br>
+
+<h4>グラフ</h4>
+
+上画面：<br>
+　実線＝中心コンパートメント濃度（血中濃度）<br>
+　影＝効果部位濃度<br>
+下画面：<br>
+　赤＝中心コンパートメント濃度<br>
+　青＝速い蓄積コンパートメント濃度　<br>
+　緑＝遅い蓄積コンパートメント濃度　<br>
+<br>
+上画面左端に表示されるスケールは1目盛りあたりの濃度[ng/mL]を示します。<br>
+例えばプロポフォールの初期設定は1000なので、縦軸1目盛りは1000ng/mL=1µg/mLを示します。<br>
+このスケールは薬剤投与画面で変更可能です。<br>
+<br>
+上画面あるいは下画面の左上のボタンで縦軸のスケールを変更できます。<br>
+上画面あるいは下画面の右上にあるボタンで横軸のスケールを変更できます。<br>
+上画面をドラッグすることで時間のスライドをすることもできます。<br>
+上画面をダブルクリックすると現在時刻に移動します。<br>
+<br>
+下画面の左端にあるボタンをクリックすると、下画面に表示するラベルを切り替えられます。<br>
+
+<h4>計算</h4>
+
+同じラベル名はまとめて計算されます。<br>
+異なるラベル名にすると区別して計算されます。<br>
+行の左端のラベルをクリックすると計算の有無を切り替えられます。<br>
+<br>
+持続投与の単位でTCIを選択可能です。<br>
+TCI計算用モデルと評価用モデルをそれぞれ選択可能です。<br>
+
+<h4>出力・読み込み</h4>
+↓output JSON data↓をクリックすると、登録情報をテキストエリアに出力します。<br>
+これを保存しておくことで例えば他の端末で↑load JSON data↑を使って復元できます。<br>
+<br>
+↓output concentration↓をクリックすると、設定した時間刻みでの薬物濃度を出力します。<br>
+
+<h4>その他の情報</h4>
+
+<a href="javascript:appear_disappear('model');">▼モデル▼</a>
+<div id="model">
+<ul>
+ <li>Propofol<ul>
+  <li> Eleveld, 2018 (using age,sex,height,weight) [PMID: 29661412] </li>
+  <li> Absalom, 2005 (using age,weight) (age≦16 only) (Peadfusor) [PMID: 15941735] </li>
+  <li> Marsh, 1991 (using weight) and applying ke=0.26 as in Diprifusor&copy; [PMID: 9640110]) </li>
+ </ul></li>
+ <li>Remimazolam<ul>
+  <li> Masui, 2022 (using age,sex,height,weight,ASA-PS) [PMID: 35708787] </li>
+  <li> Doi, 2014 (using weight) (ke unavailable) [日本臨床麻酔科学会誌 Vol.34 No.7 860-866, 2014] </li>
+ </ul></li>
+ <li>Ketamine<ul>
+  <li> Kamp, 2020 (using weight) (ke unavailable) [PMID: 32997732] </li>
+ </ul></li>
+ <li>Dexmedetomidine<ul>
+  <li> Morse, 2020 (using age,sex,height,weight) (ke unavailable) [PMID: 33126702] </li>
+   <li> Hannivoort, 2015 (using weight) (ke unavailable) [PMID: 26068206] </li>
+ </ul></li>
+ <li>Fentanyl<ul>
+  <li> Bae, 2020 (using weight) [PMID: 32861508] </li>
+  <li> Shafer, 1990 (using weight) [PMID: 2248388] </li>
+ </ul></li>
+ <li>Remifentanil<ul>
+ <li> Elevelt, 2017 (using age,sex,height,weight) [PMID: 28509794] </li>
+   <li> Kim, 2017 (using age,sex,height,weight) (ke unavailable) [PMID: 28509796] </li>
+   <li> Minto, 1997 (using age,sex,height,weight) [PMID: 9009935] </li>
+ </ul></li>
+ <li>Rocuronium<ul>
+  <li> Wierda, 1991 (using weight) (ke unavailable) [PMID: 1829656] </li>
+ </ul></li>
+ <li>Vecuronium<ul>
+  <li> Rupp, 1987 (using,weight) (younger [30-57] / older [70-84]) [PMID: 2886080] </li>
+ </ul></li>
+</ul>
+</div>
+<hr>
+<a href="javascript:appear_disappear('abbreviation');">▼略語▼</a>
+<div id="abbreviation">
+<ul>
+<li>IBW: ideal body weight: (used by Masui)<ul>
+ <li>45.4+0.89*(height-152.4)+4.5 for male</li>
+ <li>　45.4+0.89*(height-152.4) for female</li>
+</ul></li><li>ABW: adjusted body weight = IBW+0.4*(weight-IBW) (used by Masui)</li>
+<li>LBM: lean body mass: (used by Minto)<ul>
+ <li>1.1*weight-128*(weight/height)<sup>2</sup> for male</li>
+ <li>1.07*Weight-148*(weight/height)<sup>2</sup> for female</li>
+</ul></li><li>FFM<sub>j</sub>: fat free mass by Janmahasatian: (used by Kim)<ul>
+ <li>9270*weight/(6680+216*BMI) for male</li>
+ <li>9270*weight/(8780+244*BMI) for female</li>
+</ul></li><li>FFM<sub>AS</sub>: fat free mass by Al Sallami et al.: (used by Eleveld, Morse)<ul>
+ <li>(0.88+(1-0.88)/(1+(age/13.4)<sup>-12.7</sup>))*FFM<sub>j</sub> for male</li>
+ <li>(1.11+(1-1.11)/(1+(age/7.1)<sup>-1.1</sup>))*FFM<sub>j</sub> for female</li>
+</ul></li></ul>
+</div>
+
+<hr>
+
+<h4>バージョン履歴</h4>
+2022/8/16; v1.0.0<br>
+2022/8/30; v1.1.0; モデル追加、単位選択追加など<br>
+2022/9/5; v1.2.0; TCI計算追加など<br>
+2022/9/21; v1.3.0; レイアウト調整、数式表示追加など<br>
+2022/9/26; v1.4.0; JSON入出力追加など<br>
+2022/10/14; v1.4.1; 見た目の調整、不具合修正<br>
+
+</div>
 
 <hr>
 
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
 
-2022/9/26 v1.4.0-alpha<br>
+2022/10/14 v1.4.1<br>
 
 </div>
 </body></html>
