@@ -5,7 +5,6 @@
 <title>pkpd</title>
 <script>
 // for debug
-// var DB;
 // function d(x){return document.getElementById(x);}
 
 // default units are mg, min, L
@@ -1185,6 +1184,8 @@ var canvas_1, ctx_1;
 var canvas_1_cursor, ctx_1_cursor;
 var canvas_2, ctx_2;
 var canvas_2_cursor, ctx_2_cursor;
+var canvas_3, ctx_3;
+var canvas_3_cursor, ctx_3_cursor;
 
 function x2t(x){ return Canvas_common.t1 + (x-O_x)*Canvas_common.t_scale; }
 function t2x(t){
@@ -1201,9 +1202,14 @@ function canvas_resize(){
  canvas_2.height = H;
  canvas_2_cursor.width = W;
  canvas_2_cursor.height = H;
+ canvas_3.width = W;
+ canvas_3.height = H;
+ canvas_3_cursor.width = W;
+ canvas_3_cursor.height = H;
  document.getElementById("row_container").style.top = H + "px";
  document.getElementById("x_scale_setting_1").style.left = W - 100 + "px";
  document.getElementById("x_scale_setting_2").style.left = W - 100 + "px";
+ document.getElementById("x_scale_setting_3").style.left = W - 100 + "px";
  var n; for(n=0;n<Row_arr.length;n++){
   Row_arr[n].dosearea_div.style.minWidth = W + "px";
  }
@@ -1218,17 +1224,10 @@ function canvas_ready(){
  canvas_1_cursor = document.getElementById('canvas_1_cursor'); // mouse_event, dynamic layer
  canvas_2 = document.getElementById('canvas_2'); // compartment
  canvas_2_cursor = document.getElementById('canvas_2_cursor');
-/*
- canvas_1_cursor.onclick = function(e){
-  var MouseRect = e.target.getBoundingClientRect();
-  var x = e.clientX - MouseRect.left;
-  var y = e.clientY - MouseRect.top;
-  canvas1_cross( x,y, !Canvas1CrossFix );
- };
-*/
- canvas_1_cursor.ondblclick = function(e){
-  scale_now();
- };
+ canvas_3 = document.getElementById('canvas_3'); // effect
+ canvas_3_cursor = document.getElementById('canvas_3_cursor');
+
+ canvas_1_cursor.ondblclick = function(e){ scale_now(); };
  canvas_1_cursor.ondragstart = function(){ return false; };
  canvas_1_cursor.onmousedown = function(e) {
   Canvas_common.is_moving = true;
@@ -1250,6 +1249,12 @@ function canvas_ready(){
   var y = e.clientY - MouseRect.top;
   canvas2_cross( x,y, false );
  };
+ canvas_3_cursor.onmousemove = function(e) {
+  var MouseRect = e.target.getBoundingClientRect();
+  var x = e.clientX - MouseRect.left;
+  var y = e.clientY - MouseRect.top;
+  canvas3_cross( x,y, false );
+ };
  canvas_1_cursor.onmouseup = function(e) { if(Canvas_common.is_moving){
    ctx_1_cursor.clearRect(0, 0, W, H);
    var dx = Math.round ( (e.pageX - Canvas_common.moving_from)/75 ) * 75;
@@ -1269,10 +1274,13 @@ function canvas_ready(){
  setEvent(canvas_1_cursor, 'touchmove', canvas_1_touchmove);
  setEvent(canvas_1_cursor, 'touchend', canvas_1_touchend);
  setEvent(canvas_2_cursor, 'touchmove', canvas_2_touchmove);
+ setEvent(canvas_3_cursor, 'touchmove', canvas_3_touchmove);
  ctx_1 = canvas_1.getContext('2d');
  ctx_1_cursor = canvas_1_cursor.getContext('2d');
  ctx_2 = canvas_2.getContext('2d');
  ctx_2_cursor = canvas_2_cursor.getContext('2d');
+ ctx_3 = canvas_3.getContext('2d');
+ ctx_3_cursor = canvas_3_cursor.getContext('2d');
  canvas_resize();
 // delete childnodes in case user has downloaded loaded HTML 
  var div = document.getElementById("row_container");
@@ -1319,20 +1327,26 @@ function update_graph(){
  Canvas1CrossFix = false;
  ctx_1.clearRect(0, 0, W, H);
  ctx_2.clearRect(0, 0, W, H);
+ ctx_3.clearRect(0, 0, W, H);
  ctx_1.fillStyle = cBG;
  ctx_1.fillRect(0, 0, W, H);
  ctx_2.fillStyle = cBG;
  ctx_2.fillRect(0, 0, W, H);
- draw_axis(ctx_1);
- draw_axis(ctx_2);
+ ctx_3.fillStyle = cBG;
+ ctx_3.fillRect(0, 0, W, H);
+ draw_axis(ctx_1,Math.pow(2,Canvas_common.y_scale),"ng/mL");
+ draw_axis(ctx_2,Math.pow(2,Canvas_common.y_scale),"ng/mL");
+ draw_axis(ctx_3,20,"%");
  var count = -1;
+ var E_p = [], E_o = [];
+ var xi,xN = Canvas_common.x_arr.length;
+ for(xi=0;xi<xN;xi++){ E_p.push(0);E_o.push(0); }
  for(label in LabelInfoList){
   count++;
   var labelinfo = LabelInfoList[ label ];
   var showCompart = labelinfo.compart_label_div.className=="button_wide_selected";
   var C1e_arr = labelinfo.simulate(showCompart);
   var y1e_arr = [[],[]];
-  var xi,xN = Canvas_common.x_arr.length;
   for(xi=0;xi<xN;xi++){
    y1e_arr[0].push( Math.floor(H-O_y-C1e_arr[0][xi]*1000*50/labelinfo.y_scale_50/Math.pow(2,Canvas_common.y_scale)) );
    y1e_arr[1].push( Math.floor(H-O_y-C1e_arr[1][xi]*1000*50/labelinfo.y_scale_50/Math.pow(2,Canvas_common.y_scale)) );
@@ -1355,13 +1369,41 @@ function update_graph(){
    plot_graph(ctx_2, Canvas_common.x_arr, y2_arr);
    ctx_2.strokeStyle = Compart_color_arr[2];
    plot_graph(ctx_2, Canvas_common.x_arr, y3_arr);
-}}}
-function draw_axis(ctx){
+  }
+  if( labelinfo.agent == "P" ){
+   for(xi=0;xi<xN;xi++){ E_p[xi] += C1e_arr[1][xi]; }
+  }
+  if( labelinfo.agent == "RF" || labelinfo.agent == "F" ){
+   for(xi=0;xi<xN;xi++){ E_o[xi] += C1e_arr[1][xi]; }
+  }
+ }
+ var ei;for(ei=0;ei<EffectList.length;ei++){
+  var effect = EffectList[ei];
+  var y_ratio = [];
+  for(xi=0;xi<xN;xi++){
+   var numer = Math.pow(E_o[xi]*1000/effect.C50r + E_p[xi]/effect.C50p + effect.alpha * E_o[xi]*1000/effect.C50r * E_p[xi]/effect.C50p, effect.n);
+   var denom = numer + 1;
+   y_ratio[xi] = H-O_y - numer/denom*100 * 50/20 ; // 20% per 50px
+  }
+  ctx_3.strokeStyle = effect.color;
+  plot_graph(ctx_3, Canvas_common.x_arr, y_ratio);
+ }
+}
+var EffectList=[
+ {label:"Loss of response to pressure algometry", C50p:4.2, C50r:8.8, n:8.3, alpha:8.2, color:"red"},
+ {label:"Loss of response to electrical tetany", C50p:4.6, C50r:23.1, n:6.0, alpha:14.7, color:"blue"},
+ {label:"Loss of response to laryngoscopy", C50p:5.6, C50r:48.9, n:2.2, alpha:33.2, color:"green"},
+ {label:"Loss of responsiveness", C50p:2.2, C50r:33.1, n:50, alpha:3.6, color:"purple"}
+];
+
+function draw_axis(ctx,dy,y_unit){
  ctx.font = ctx_font;
  ctx.beginPath(); ctx.moveTo(0, H-O_y); ctx.lineTo(W, H-O_y); ctx.strokeStyle = cAX1; ctx.stroke();
  ctx.beginPath(); ctx.moveTo(O_x, 0); ctx.lineTo(O_x, H-O_y); ctx.strokeStyle = cAX1; ctx.stroke();
  ctx.fillStyle = cCH;
- ctx.fillText( "ng/mL", O_x-50, 15);
+ ctx.textAlign = "right";
+ ctx.fillText( y_unit, O_x, 15);
+ ctx.textAlign = "left";
  ctx.strokeStyle = cAX2;
  var x;
  for(x=O_x; x<W; x+=150){ //draw v-line
@@ -1371,14 +1413,17 @@ function draw_axis(ctx){
   ctx.stroke();
   ctx.fillText( min2hm(x2t(x)), x, H-O_y/2);
  }
+ ctx.textAlign = "right";
  var y;
- for(y=0; y<H-O_y; y+=50){ //draw v-line
-  ctx.beginPath(); // draw h-line
+ for(y=0; y<H-O_y; y+=50){ //draw h-line
+  ctx.beginPath();
   ctx.moveTo( O_x, H - O_y - y );
   ctx.lineTo( W, H - O_y - y );
   ctx.stroke();
-  ctx.fillText( (y/50) * Math.pow(2,Canvas_common.y_scale) , O_x - 15, H - O_y - y);
-}}
+  ctx.fillText( (y/50) * dy, O_x, H - O_y - y);
+ }
+ ctx.textAlign = "left";
+}
 function plot_graph(ctx, x_arr, y_arr){ // set ctx_1.strokeStyle before this
  ctx.beginPath();
  ctx.moveTo(x_arr[0], y_arr[0]);
@@ -1389,7 +1434,7 @@ function plot_graph(ctx, x_arr, y_arr){ // set ctx_1.strokeStyle before this
  ctx.stroke();
 }
 function fill_graph(ctx, x_arr, y_arr){ // set ctx_1.fillStyle before this
- ctx.globalAlpha = 0.3;
+ ctx.globalAlpha = 0.2;
  ctx.beginPath();
  ctx.moveTo(x_arr[0], H-O_y);
  var i;
@@ -1500,7 +1545,7 @@ function canvas_1_touchmove(e){
    var MouseRect = e.target.getBoundingClientRect();
    var x = e.clientX - MouseRect.left;
    var y = e.clientY - MouseRect.top;
-   canvas1_cross( x,y, false );
+   canvas1_cross( x,y );
  }}
  else if(Canvas_common.is_moving){
   Canvas_common.is_moving = false;
@@ -1513,7 +1558,14 @@ function canvas_2_touchmove(e){
   var MouseRect = e.target.getBoundingClientRect();
   var x = e.clientX - MouseRect.left;
   var y = e.clientY - MouseRect.top;
-  canvas2_cross( x,y, false );
+  canvas2_cross( x,y );
+}};
+function canvas_3_touchmove(e){
+ if(e.changedTouches.length==1){
+  var MouseRect = e.target.getBoundingClientRect();
+  var x = e.clientX - MouseRect.left;
+  var y = e.clientY - MouseRect.top;
+  canvas3_cross( x,y );
 }};
 function canvas_1_touchend(e){
  if(Canvas_common.is_moving){
@@ -1526,35 +1578,43 @@ function canvas_1_touchend(e){
   var MouseRect = e.target.getBoundingClientRect();
   var x = e.changedTouches[0].pageX - MouseRect.left;
   var y = e.changedTouches[0].pageY - MouseRect.top;
-  canvas1_cross( x,y, true );
+  canvas1_cross( x,y );
 }};
 
-var Canvas1CrossFix = false;
+// var Canvas1CrossFix = false;
 
 function delete_cursor(){
  ctx_1_cursor.clearRect(0, 0, W, H);
  ctx_2_cursor.clearRect(0, 0, W, H);
+ ctx_3_cursor.clearRect(0, 0, W, H);
  Canvas1CrossFix = false;
 }
-function canvas1_cross( x,y,b ){
- if(Canvas1CrossFix){ return; }
- if (x<0 || x>W || y<0 || y>H){ delete_cursor(); return;}
- Canvas1CrossFix = b;
- ctx_1_cursor.lineWidth = 1; // or 0.5?
+function canvas_vline(x){
+ ctx_1_cursor.lineWidth = 1;
  ctx_1_cursor.strokeStyle = cCu;
- ctx_1_cursor.fillStyle = cCu;
- ctx_1_cursor.font = ctx_font;
  ctx_2_cursor.lineWidth = 1;
  ctx_2_cursor.strokeStyle = cCu;
+ ctx_3_cursor.lineWidth = 1;
+ ctx_3_cursor.strokeStyle = cCu;
  ctx_1_cursor.clearRect(0, 0, W, H);
  ctx_1_cursor.beginPath(); ctx_1_cursor.moveTo(x, 0); ctx_1_cursor.lineTo(x, H); ctx_1_cursor.stroke();
- ctx_1_cursor.beginPath(); ctx_1_cursor.moveTo(0, y); ctx_1_cursor.lineTo(canvas_1_cursor.width, y); ctx_1_cursor.stroke();
- ctx_1_cursor.fillText( min2hm(x2t(x)), x+1, H);
- ctx_1_cursor.fillText( myPrecision((H-O_y-y)/50), O_x-15, y-1);
  ctx_2_cursor.clearRect(0, 0, W, H);
  ctx_2_cursor.beginPath(); ctx_2_cursor.moveTo(x, 0); ctx_2_cursor.lineTo(x, H); ctx_2_cursor.stroke();
+ ctx_3_cursor.clearRect(0, 0, W, H);
+ ctx_3_cursor.beginPath(); ctx_3_cursor.moveTo(x, 0); ctx_3_cursor.lineTo(x, H); ctx_3_cursor.stroke();
+}
+
+function canvas1_cross( x,y ){
+ if (x<0 || x>W || y<0 || y>H){ delete_cursor(); return;}
+ canvas_vline(x);
+ ctx_1_cursor.fillStyle = cCu;
+ ctx_1_cursor.font = ctx_font;
+ ctx_1_cursor.beginPath(); ctx_1_cursor.moveTo(0, y); ctx_1_cursor.lineTo(canvas_1_cursor.width, y); ctx_1_cursor.stroke();
+ ctx_1_cursor.fillText( min2hm(x2t(x)), x, H);
+ ctx_1_cursor.fillText( myPrecision((H-O_y-y)/50*Math.pow(2,Canvas_common.y_scale)), O_x, y);
  disp_compart_info(x);
- var t = x2t(x), count = 0;
+ var t = x2t(x), count = 0, countN = 0;
+ for(label in LabelInfoList){ countN++; }
  for(label in LabelInfoList){
   var labelinfo = LabelInfoList[label];
   var C = labelinfo.simulate_t_arr([t]);
@@ -1563,26 +1623,23 @@ function canvas1_cross( x,y,b ){
   var txt = label + ":Cp=" + myPrecision(C.C1_ng_mL/unit);
   if(C.Ce_ng_mL!=0){ txt += ",Ce=" + myPrecision(C.Ce_ng_mL/unit); }
   txt += unit==1000?"[μg/mL]":"[ng/mL]";
-  ctx_1_cursor.fillText(txt , x+3, y-3 - (count)*18);
+  ctx_1_cursor.textAlign = x>W/2? "right": "left";
+  ctx_1_cursor.textBaseline = y>18*countN? "alphabetic": "top";
+  ctx_1_cursor.fillText(txt , x, y-2 + ((y>18*countN?0:countN-1)-count)*18);
+  ctx_1_cursor.textAlign = "left";
+  ctx_1_cursor.textBaseline = "alphabetic";
   count++;
  }
 }
 
-function canvas2_cross( x,y,b ){
+function canvas2_cross( x,y ){
  if (x<0 || x>W || y<0 || y>H){ delete_cursor(); return;}
- ctx_1_cursor.lineWidth = 1; // or 0.5?
- ctx_1_cursor.strokeStyle = cCu;
- ctx_2_cursor.lineWidth = 1;
- ctx_2_cursor.strokeStyle = cCu;
+ canvas_vline(x);
  ctx_2_cursor.fillStyle = cCu;
  ctx_2_cursor.font = ctx_font;
- ctx_1_cursor.clearRect(0, 0, W, H);
- ctx_1_cursor.beginPath(); ctx_1_cursor.moveTo(x, 0); ctx_1_cursor.lineTo(x, H); ctx_1_cursor.stroke();
- ctx_2_cursor.clearRect(0, 0, W, H);
- ctx_2_cursor.beginPath(); ctx_2_cursor.moveTo(x, 0); ctx_2_cursor.lineTo(x, H); ctx_2_cursor.stroke();
  ctx_2_cursor.beginPath(); ctx_2_cursor.moveTo(0, y); ctx_2_cursor.lineTo(canvas_2_cursor.width, y); ctx_2_cursor.stroke();
- ctx_2_cursor.fillText( min2hm(x2t(x)), x+1, H);
- ctx_2_cursor.fillText( myPrecision((H-O_y-y)/50), O_x-15, y-1);
+ ctx_2_cursor.fillText( min2hm(x2t(x)), x, H);
+ ctx_2_cursor.fillText( myPrecision((H-O_y-y)/50*Math.pow(2,Canvas_common.y_scale)), O_x, y);
  disp_compart_info(x);
  if(Compart.div){
   var labelinfo = LabelInfoList[Compart.div.innerHTML];
@@ -1593,9 +1650,50 @@ function canvas2_cross( x,y,b ){
    ctx_2_cursor.fillStyle = Compart_color_arr[i];
    var txt = "C"+(1+i)+"=" + myPrecision(C["C"+(1+i)+"_ng_mL"]/unit);
    txt += unit==1000?"μg/mL":"[ng/mL]";
-   ctx_2_cursor.fillText(txt , x+3, y-3 - (2-i)*18);
+   ctx_2_cursor.textAlign = x>W/2? "right": "left";
+   ctx_2_cursor.textBaseline = y>60? "alphabetic": "top";
+   ctx_2_cursor.fillText(txt , x, y-2 + ((y>60?-2:0)+i)*18);
+   ctx_2_cursor.textAlign = "left";
+   ctx_2_cursor.textBaseline = "alphabetic";
   }
   count++;
+ }
+}
+
+function canvas3_cross( x,y ){
+ if (x<0 || x>W || y<0 || y>H){ delete_cursor(); return;}
+ canvas_vline(x);
+ ctx_3_cursor.fillStyle = cCu;
+ ctx_3_cursor.font = ctx_font;
+ ctx_3_cursor.beginPath(); ctx_3_cursor.moveTo(0, y); ctx_3_cursor.lineTo(canvas_3_cursor.width, y); ctx_3_cursor.stroke();
+ ctx_3_cursor.fillText( min2hm(x2t(x)), x, H);
+ ctx_3_cursor.fillText( myPrecision((H-O_y-y)/50*20), O_x, y);
+ disp_compart_info(x);
+ var E_p=0, E_o=0;
+ var t = x2t(x);
+ for(label in LabelInfoList){
+  var labelinfo = LabelInfoList[label];
+  if (labelinfo.agent == "P"){
+   var C = labelinfo.simulate_t_arr([t]);
+   E_p += parseFloat(C.Ce_ng_mL);
+  }
+  if (labelinfo.agent == "RF" || labelinfo.agent == "F"){
+   var C = labelinfo.simulate_t_arr([t]);
+   E_o += parseFloat(C.Ce_ng_mL);
+  }
+ }
+ var ei;for(ei=0;ei<EffectList.length;ei++){
+  var effect = EffectList[ei];
+  var numer = Math.pow(E_o/effect.C50r + E_p/1000/effect.C50p + effect.alpha * E_o/effect.C50r * E_p/1000/effect.C50p, effect.n);
+  var denom = numer + 1;
+  ratio = 100*numer/denom;
+  ctx_3_cursor.fillStyle = effect.color;
+  var txt = effect.label + ":" + myPrecision(ratio) + "%";
+  ctx_3_cursor.textAlign = x>W/2? "right": "left";
+  ctx_3_cursor.textBaseline = y>80? "alphabetic":"top";
+  ctx_3_cursor.fillText(txt , x, y-2 + ((y>80?0:3)-ei)*18);
+  ctx_3_cursor.textAlign = "left";
+  ctx_3_cursor.textBaseline = "alphabetic";
  }
 }
 
@@ -1661,23 +1759,17 @@ function entry_mousemove(e){
 }
 function cursor_to(x){
  Canvas1CrossFix = false;
- ctx_1_cursor.lineWidth = 1;
- ctx_1_cursor.strokeStyle = cCu;
+ canvas_vline(x);
  ctx_1_cursor.fillStyle = cCu;
  ctx_1_cursor.font = ctx_font;
- ctx_1_cursor.clearRect(0, 0, W, H);
- ctx_1_cursor.beginPath(); ctx_1_cursor.moveTo(x, 0); ctx_1_cursor.lineTo(x, H); ctx_1_cursor.stroke();
  ctx_1_cursor.fillText( min2hm(x2t(x)), x+1, H);
- ctx_2_cursor.lineWidth = 1;
- ctx_2_cursor.strokeStyle = cCu;
- ctx_2_cursor.clearRect(0, 0, W, H);
- ctx_2_cursor.beginPath(); ctx_2_cursor.moveTo(x, 0); ctx_2_cursor.lineTo(x, H); ctx_2_cursor.stroke();
  disp_compart_info(x);
 }
 function cursor_delete() {
  Canvas1CrossFix = false;
  ctx_1_cursor.clearRect(0, 0, W, H);
  ctx_2_cursor.clearRect(0, 0, W, H);
+ ctx_3_cursor.clearRect(0, 0, W, H);
 }
 
 function create_new_row(){
@@ -2165,6 +2257,7 @@ var Compart = {
 }
 function compart_ready(){
  document.getElementById("area2").style.height = H + 50 + "px";
+ document.getElementById("area3").style.height = H + 50 + "px";
  document.getElementById("comp_2").style.height = H-O_y-Compart.O_y_top + "px";
  document.getElementById("comp_1").style.height = H-O_y-Compart.O_y_top + "px";
  document.getElementById("comp_3").style.height = H-O_y-Compart.O_y_top + "px";
@@ -2460,6 +2553,10 @@ function output_conc(){
  document.getElementById("output_conc_area").value = JSON.stringify(temp_object, null, 1).replace(/\"/g, "");
 }
 
+/* effect */
+
+
+
 </script>
 <style>
 body{
@@ -2476,8 +2573,10 @@ input{
  margin:5px;
  width: 40px;
 }
-#area1, #area2{ position:relative;}
-#area2{ margin-top:20px; }
+#area1, #area2, #area3{ position:relative;}
+#area2{ margin-top:20px;display:none; }
+#area3{ margin-top:20px;display:none; }
+
 #x_scale_setting_1, #x_scale_setting_2, #y_scale_setting_1, #y_scale_setting_2 {
  position:absolute;
  border: solid 2px #666666;
@@ -2784,10 +2883,6 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 <hr>
   Model:
   <a href="javascript:manual_param_switch();">▼Edit model▼</a>
-<!--
-  <span class="button_wide" id="entry_preset" onclick="manual_param_to(false);">Preset</span>
-  <span class="button_wide" id="entry_manual" onclick="manual_param_to(true);">Edit</span>
--->
   <div id="PU_manual_model">
    <div class="item" i="0">V1=<input type="tel" onfocus="this.select();" oninput="manual_param(this);"><span onclick="preset_param(this);" class="button_wide">Preset</span><span onclick="previous_param(this,false);" class="button_wide">Previous</span></div>
    <div class="item" i="1">V2=<input type="tel" onfocus="this.select();" oninput="manual_param(this);"><span onclick="preset_param(this);" class="button_wide">Preset</span><span onclick="previous_param(this,false);" class="button_wide">Previous</span></div>
@@ -2829,6 +2924,23 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
  </div>
 </div>
 
+<div style="margin-top:5px;">
+ <a href="javascript:appear_disappear('area3');">▼Propofol+opioid effect▼</a>
+</div>
+
+<div id="area3">
+ <canvas id="canvas_3"></canvas>
+ <canvas id="canvas_3_cursor"></canvas>
+ <form id="x_scale_setting_3">
+  <span class="x_scale_button" onclick="scale_short();">+</span><span class="x_scale_button" onclick="scale_long();">-</span> <br>
+  <span class="x_scale_button" onclick="scale_prev();">&lt;</span><span class="x_scale_button" onclick="scale_next();">&gt;</span>
+ </form>
+</div>
+
+<div>
+ <a href="javascript:appear_disappear('area2');">▼Compartment visualization▼</a>
+</div>
+
 <div id="area2">
  <canvas id="canvas_2"></canvas>
  <div class="comp" id="comp_1"><div class="comp_inner" id="comp_inner_1"></div></div>
@@ -2859,18 +2971,22 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
   <span class="y_scale_button" onclick="yscale_short();">+</span><span class="y_scale_button" onclick="yscale_long();">-</span>
  </form>
 </div>
-<hr>
 
-<a href="javascript:output_data();">↓output JSON data↓</a>
-<a href="javascript:load_data();">↑load JSON data↑</a><br>
-<textarea id="output_data_area" rows="5" wrap="off"></textarea>
+<div>
+ <a href="javascript:appear_disappear('area_output_load');">▼Output/Load▼</a>
+</div>
+
+<div id="area_output_load" style="display:none;">
+ <a href="javascript:output_data();">↓output JSON data↓</a>
+ <a href="javascript:load_data();">↑load JSON data↑</a><br>
+ <textarea id="output_data_area" rows="5" wrap="off"></textarea>
 <br>
-
-<a href="javascript:output_conc();">↓output concentration↓</a> from <input type="tel" id="output_t1"> to <input type="tel" id="output_t2"> with offset
-<input type="tel" id="output_dt" value="1"><select id="output_t_scale"><option value="1" selected>min</option><option value="60">sec</option></select>
+ <a href="javascript:output_conc();">↓output concentration↓</a> from <input type="tel" id="output_t1"> to <input type="tel" id="output_t2"> with offset
+ <input type="tel" id="output_dt" value="1"><select id="output_t_scale"><option value="1" selected>min</option><option value="60">sec</option></select>
 <br>
+ <textarea id="output_conc_area" rows="5" wrap="off"></textarea>
+</div>
 
-<textarea id="output_conc_area" rows="5" wrap="off"></textarea>
 <hr>
 
 <a href="javascript:appear_disappear('usage');">▼説明▼</a>
@@ -2888,40 +3004,45 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 新規登録画面でprevボタンを押すことでも過去の投与情報を編集できます。<br>
 持続投与の中止には0を入力してください。<br>
 
-<h4>グラフ</h4>
-
-上画面：<br>
-　実線＝中心コンパートメント濃度（血中濃度）<br>
-　影＝効果部位濃度<br>
-下画面：<br>
-　赤＝中心コンパートメント濃度<br>
-　青＝速い蓄積コンパートメント濃度　<br>
-　緑＝遅い蓄積コンパートメント濃度　<br>
-<br>
-上画面左端に表示されるスケールは1目盛りあたりの濃度[ng/mL]を示します。<br>
-例えばプロポフォールの初期設定は1000なので、縦軸1目盛りは1000ng/mL=1µg/mLを示します。<br>
-このスケールは薬剤投与画面で変更可能です。<br>
-<br>
-上画面あるいは下画面の左上のボタンで縦軸のスケールを変更できます。<br>
-上画面あるいは下画面の右上にあるボタンで横軸のスケールを変更できます。<br>
-上画面をドラッグすることで時間のスライドをすることもできます。<br>
-上画面をダブルクリックすると現在時刻に移動します。<br>
-<br>
-下画面の左端にあるボタンをクリックすると、下画面に表示するラベルを切り替えられます。<br>
-
 <h4>計算</h4>
 
 同じラベル名はまとめて計算されます。<br>
 異なるラベル名にすると区別して計算されます。<br>
 行の左端のラベルをクリックすると計算の有無を切り替えられます。<br>
+計算に用いたパラメータの詳細は後述のモデルを参照。<br>
 <br>
 持続投与の単位でTCIを選択可能です。<br>
 TCI計算用モデルと評価用モデルをそれぞれ選択可能です。<br>
 
+<h4>グラフ</h4>
+
+・実線＝中心コンパートメント濃度（血中濃度）<br>
+・影＝効果部位濃度<br>
+上画面左端に表示されるスケールは1目盛りあたりの濃度[ng/mL]を示します。<br>
+例えばプロポフォールの初期設定は1000なので、縦軸1目盛りは1000ng/mL=1µg/mLを示します。<br>
+このスケールは薬剤投与画面の右上のほうで変更可能です。<br>
+<br>
+左上のボタンで縦軸のスケールを変更できます。<br>
+右上のボタンで横軸のスケールを変更できます。<br>
+グラフをドラッグすることで時間のスライドをすることもできます。<br>
+グラフをダブルクリックすると現在時刻に移動します。<br>
+
+<h4>プロポフォール＋オピオイド効果</h4>
+
+Johnson, 2008 [PMID: 18227302] の計算式による反応消失確率のシミュレーションです。<br>
+文献ではプロポフォール・レミフェンタニルの組み合わせですが、<br>
+ここではフェンタニルとレミフェンタニルが同じ力価と仮定して加算しています。<br>
+
+<h4>コンパートメント可視化</h4>
+
+・赤＝中心コンパートメント濃度<br>
+・青＝速い蓄積コンパートメント濃度<br>
+・緑＝遅い蓄積コンパートメント濃度<br>
+左にあるボタンクリックで可視化するラベルを切り替えます。<br>
+
 <h4>出力・読み込み</h4>
 ↓output JSON data↓をクリックすると、登録情報をテキストエリアに出力します。<br>
 これを保存しておくことで例えば他の端末で↑load JSON data↑を使って復元できます。<br>
-<br>
 ↓output concentration↓をクリックすると、設定した時間刻みでの薬物濃度を出力します。<br>
 
 <h4>その他の情報</h4>
@@ -2962,7 +3083,9 @@ TCI計算用モデルと評価用モデルをそれぞれ選択可能です。<b
  </ul></li>
 </ul>
 </div>
-<hr>
+
+<br>
+
 <a href="javascript:appear_disappear('abbreviation');">▼略語▼</a>
 <div id="abbreviation">
 <ul>
@@ -2982,7 +3105,7 @@ TCI計算用モデルと評価用モデルをそれぞれ選択可能です。<b
 </ul></li></ul>
 </div>
 
-<hr>
+<br>
 
 <h4>バージョン履歴</h4>
 2022/8/16; v1.0.0<br>
@@ -2990,15 +3113,14 @@ TCI計算用モデルと評価用モデルをそれぞれ選択可能です。<b
 2022/9/5; v1.2.0; TCI計算追加など<br>
 2022/9/21; v1.3.0; レイアウト調整、数式表示追加など<br>
 2022/9/26; v1.4.0; JSON入出力追加など<br>
-2022/10/14; v1.4.1; 見た目の調整、不具合修正<br>
-
+2022/10/16; v1.5.0; プロポフォール＋オピオイド効果追加など<br>
 </div>
 
 <hr>
 
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
 
-2022/10/14 v1.4.1<br>
+2022/10/16 v1.5.0<br>
 
 </div>
 </body></html>
