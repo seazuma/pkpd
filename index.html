@@ -2,7 +2,7 @@
 <html><head>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <meta name="viewport" content="width=750">
-<title>pkpd</title>
+<title>AnesSimulator</title>
 <script>
 // for debug
 // function d(x){return document.getElementById(x);}
@@ -76,8 +76,7 @@ UnitInfoList["mL/h"] = new UnitInfo(true, false, true, 1/60);
 UnitInfoList["ng/mL"] = new UnitInfo(true, false, false, 1/1000);
 UnitInfoList["μg/mL"] = new UnitInfo(true, false, false, 1);
 
-var AgentInfo = function(agent_fullname, bolus_unit, infusion_unit, mgmL, y_scale_50, color){
- this.agent_fullname = agent_fullname;
+var AgentInfo = function(bolus_unit, infusion_unit, mgmL, y_scale_50, color){
  this.bolus_unit = bolus_unit;
  this.infusion_unit = infusion_unit;
  this.mgmL = mgmL;
@@ -89,14 +88,14 @@ var AgentInfo = function(agent_fullname, bolus_unit, infusion_unit, mgmL, y_scal
 }
 var AgentInfoList = {};
 
-AgentInfoList["P"] = new AgentInfo("Propofol","mg","mg/h", 10, 1000, "#0000ff"); // blue
-AgentInfoList["RMZ"] = new AgentInfo("Remimazolam","mg","mg/h", 1, 1000, "#800080"); // purple
-AgentInfoList["K"] = new AgentInfo("Ketamine","mL","mL/h", 10, 100, "#008000"); //green
-AgentInfoList["DEX"] = new AgentInfo("Dexmedetomidine","mL","μg/kg/h", 0.004, 1, "#008080"); //teal
-AgentInfoList["F"] = new AgentInfo("Fentanyl","mL","mL/h", 0.05, 1, "#ff0000"); //red
-AgentInfoList["RF"] =  new AgentInfo("Remifentanil","mL","mL/h", 0.1, 1, "#808000"); // olive
-AgentInfoList["Rb"] =  new AgentInfo("Rocuronium","mg","mg/h", 10,500, "#800000"); // maroon
-AgentInfoList["Vb"] =  new AgentInfo("Vecuronium","mg","mg/h", 1,50, "#ff00ff"); // fuchsia
+AgentInfoList["Propofol"] = new AgentInfo("mg","mg/h", 10, 1000, "#0000ff"); // blue
+AgentInfoList["Remimazolam"] = new AgentInfo("mg","mg/h", 1, 1000, "#800080"); // purple
+AgentInfoList["Ketamine"] = new AgentInfo("mL","mL/h", 10, 100, "#008000"); //green
+AgentInfoList["Dexmedetomidine"] = new AgentInfo("mL","μg/kg/h", 0.004, 1, "#008080"); //teal
+AgentInfoList["Fentanyl"] = new AgentInfo("mL","mL/h", 0.05, 1, "#ff0000"); //red
+AgentInfoList["Remifentanil"] =  new AgentInfo("mL","mL/h", 0.1, 1, "#808000"); // olive
+AgentInfoList["Rocuronium"] =  new AgentInfo("mg","mg/h", 10,500, "#800000"); // maroon
+AgentInfoList["Vecuronium"] =  new AgentInfo("mg","mg/h", 1,50, "#ff00ff"); // fuchsia
 
 /* model */
 
@@ -263,38 +262,50 @@ var model_Vb_R1987_o = function(patient){ // Rupp,1987,younger
  return model_from_k(0.0389,0.4368,0.107,0.0787,0.0039, 0.5923 ,0.029*patient.weight);
 }
 
-AgentInfoList["P"].preset_model_arr = [
+AgentInfoList["Propofol"].preset_model_arr = [
  {model_g: model_P_E2018, label: "Eleveld,2018"},
  {model_g: model_P_A2005, label: "Absalom,2005"},
  {model_g: model_P_M1991, label: "Marsh,1991"}
 ];
-AgentInfoList["RMZ"].preset_model_arr = [
+AgentInfoList["Remimazolam"].preset_model_arr = [
  {model_g: model_RMZ_M2022, label: "Masui,2022"},
  {model_g: model_RMZ_D2014, label: "Doi,2014"}
 ];
-AgentInfoList["K"].preset_model_arr = [
+AgentInfoList["Ketamine"].preset_model_arr = [
  {model_g: model_K_K2020, label: "Kamp,2020"}
 ];
-AgentInfoList["DEX"].preset_model_arr = [
+AgentInfoList["Dexmedetomidine"].preset_model_arr = [
  {model_g: model_DEX_M2020, label: "Morse,2020"},
  {model_g: model_DEX_H2015, label: "Hannivoort,2015"}
 ];
-AgentInfoList["F"].preset_model_arr = [
+AgentInfoList["Fentanyl"].preset_model_arr = [
  {model_g: model_F_B2020, label: "Bae, 2020"},
  {model_g: model_F_S1990, label: "Shafer,1990"}
 ];
-AgentInfoList["RF"].preset_model_arr = [
+AgentInfoList["Remifentanil"].preset_model_arr = [
  {model_g: model_RF_E2017, label: "Eleveld,2017"},
  {model_g: model_RF_K2017, label: "Kim,2017"},
  {model_g: model_RF_M1997, label: "Minto,1997"}
 ];
-AgentInfoList["Rb"].preset_model_arr = [
+AgentInfoList["Rocuronium"].preset_model_arr = [
  {model_g: model_Rb_W1991, label: "Wierda,1991"}
 ];
-AgentInfoList["Vb"].preset_model_arr = [
+AgentInfoList["Vecuronium"].preset_model_arr = [
  {model_g: model_Vb_R1987_y, label: "Rupp,1987,younger"},
  {model_g: model_Vb_R1987_o, label: "Rupp,1987,older"}
 ];
+
+Modelname2func = []; // used in load_data(), ex. Modelname2func["model_P_E2018"](..) = model_P_E2018(..)
+(function(){
+ var agent;
+ for(agent in AgentInfoList){
+  var arr = AgentInfoList[agent].preset_model_arr;
+  var i; for(i=0;i<arr.length;i++){
+   modelinfo = arr[i];
+   Modelname2func[modelinfo.model_g.name] = modelinfo.model_g;
+  } 
+ }
+})();
 
 /* patient */
 
@@ -607,12 +618,13 @@ var LabelInfo = function(agent){
  this.model_at = {};
  this.compart_label_div = null;
  this.toJSON = function(){
-  var i, output_keys = ["agent","mgmL","y_scale_50","color","preset_model_g","model_at","row_arr"];
+  var i, output_keys = ["agent","mgmL","y_scale_50","color","model_at","row_arr"];
   var temp_object = {};
   for(i=0; i<output_keys.length; i++){
    var key = output_keys[i]; 
    temp_object[key] = this[key];
   }
+  if( this.preset_model_g ){temp_object.preset_model_g = this.preset_model_g.name;}
   return temp_object;
  };
 }
@@ -627,7 +639,7 @@ var Row = function(){
  dosearea_div.style.height = row_H - 1 + "px";
  dosearea_div.setAttribute("n", this.n);
  if(this.n==0){
-  dosearea_div.innerHTML = "--- Click here to register ---";
+  dosearea_div.innerHTML = "--- Click here for simulation ---";
   dosearea_div.style.textAlign = "center";
  }
  setClass(dosearea_div, "dosearea");
@@ -656,6 +668,7 @@ var Row = function(){
    var key = output_keys[i];
    temp_object[key] = this[key];
   }
+  if( this.TCI_model_g ){temp_object.TCI_model_g = this.TCI_model_g.name;}
   return temp_object;
  };
 }
@@ -676,7 +689,7 @@ Row.prototype.register = function(label, unit_span){
  this.label = label;
  this.unit_span = unit_span; // botton in pop_up
  this.unit = unit_span.innerHTML;
- if(this.dosearea_div.innerHTML == "--- Click here to register ---"){ this.dosearea_div.innerHTML = ""; }
+ if(this.dosearea_div.innerHTML == "--- Click here for simulation ---"){ this.dosearea_div.innerHTML = ""; }
  if(!this.labelarea_div){
   var labelarea_div = document.createElement('div');
   setClass(labelarea_div, "labelarea_on");
@@ -1447,7 +1460,7 @@ function fill_graph(ctx, x_arr, y_arr){ // set ctx_1.fillStyle before this
  ctx.globalAlpha = 1;
 }
 function scale_now(){
- var t1 = Date_now.getHours()*60 + Date_now.getMinutes();
+ var t1 = (new Date()).getHours()*60 + (new Date()).getMinutes();
  t1 = Math.floor(t1/Canvas_common.t_scale_150)*Canvas_common.t_scale_150;
  update_x_axis(t1, Canvas_common.t_scale_150);
 }
@@ -1460,13 +1473,6 @@ function scale_short(){
  else if(t_scale_150==3*60){ t_scale_150 = 60; }
  else if(t_scale_150==7*24*60){ t_scale_150 = 4*24*60; }
  else{ t_scale_150 /= 2;}
-/*
- var t_now = Date_now.getHours()*60 + Date_now.getMinutes();
- if(Canvas_common.t0 <= t_now && t_now <= Canvas_common.t2){
-  Canvas_common.t_scale_150 = t_scale_150;
-  scale_now();
- }
-*/
  t1 = Math.floor(Canvas_common.t1/t_scale_150)*t_scale_150;
  update_x_axis(t1, t_scale_150);
  document.getElementById("x_scale_setting_1").children[1].innerHTML = "-";
@@ -1484,13 +1490,6 @@ function scale_long(){
  else if(t_scale_150==8*60){ t_scale_150 = 24*60; }
  else if(t_scale_150==4*24*60){ t_scale_150 = 7*24*60; }
  else{ t_scale_150 *= 2;}
-/*
- var t_now = Date_now.getHours()*60 + Date_now.getMinutes();
- if(Canvas_common.t0 <= t_now && t_now <= Canvas_common.t2){
-  Canvas_common.t_scale_150 = t_scale_150;
-  scale_now();
- }
-*/
  t1 = Math.floor(Canvas_common.t1/t_scale_150)*t_scale_150;
  update_x_axis(t1, t_scale_150);
  document.getElementById("x_scale_setting_1").children[0].innerHTML = "+";
@@ -1823,9 +1822,9 @@ function drug_arr_ready(){
   var div_drug = document.createElement('div');
   var span1 = document.createElement('span');
   var span2 = document.createElement('span');
-  div_drug.innerHTML = AgentInfoList[agent].agent_fullname;
-  span1.innerHTML = AgentInfoList[agent].bolus_unit;//"Bolus";
-  span2.innerHTML = AgentInfoList[agent].infusion_unit;//"Infusion";
+  div_drug.innerHTML = agent;
+  span1.innerHTML = AgentInfoList[agent].bolus_unit; //"Bolus";
+  span2.innerHTML = AgentInfoList[agent].infusion_unit; //"Infusion";
   setClass(span1, "button_wide");
   setClass(span2, "button_wide");
   span1.setAttribute("agent", agent);
@@ -2048,7 +2047,7 @@ function dose_input(x){
  change_unit_val(null);
 }
 function set_time_now(){
- var time = Date_now.getHours()*60 + Date_now.getMinutes();
+ var time = (new Date()).getHours()*60 + (new Date()).getMinutes();
  document.getElementById("pop_up_overwriting").style.display
  = (Setting.row.entry_at[time] == undefined || Setting.edit_div && time == Setting.edit_div.getAttribute("time") ) ? "none" : "inline";
  document.getElementById("entry_time").value = min2hm(time);
@@ -2477,6 +2476,7 @@ function load_data(){
   for(ri=0; ri<row_arr.length; ri++){
    row = Row_arr[Row_arr.length-1];
    var unit = row_arr[ri].unit;
+   unit = unit.split("ug").join("μg").split("mcg").join("μg");
    if(!UnitInfoList[unit]){
     console.log("Invalid unit");
     continue;
@@ -2484,12 +2484,18 @@ function load_data(){
    var unit_span = UnitInfoList[unit].is_infusion? AgentInfoList[agent].span_infusion: AgentInfoList[agent].span_bolus;
    unit_span.innerHTML = unit;
    row.register(label, unit_span)
+   if(row_arr[ri].TCI_model_g){
+    row.TCI_model_g = Modelname2func[row_arr[ri].TCI_model_g];
+   }
    var t; for(t in row_arr[ri].entry_at){
     row.add_data(parseInt(t), row_arr[ri].entry_at[t], null, null);
    }
    row.labelarea_div.innerHTML = label + "(" + unit + ")"; 
-   row.labelarea_div.style.color = labelinfo.color;
+   if(labelinfo.color){ row.labelarea_div.style.color = labelinfo.color; }
    create_new_row();
+  }
+  if(labelinfo.preset_model_g){
+   LabelInfoList[label].preset_model_g = Modelname2func[labelinfo.preset_model_g];
   }
   var ki, keys = ["mgmL","y_scale_50","color"];
   for(ki=0; ki<keys.length; ki++){
@@ -2552,10 +2558,6 @@ function output_conc(){
  }
  document.getElementById("output_conc_area").value = JSON.stringify(temp_object, null, 1).replace(/\"/g, "");
 }
-
-/* effect */
-
-
 
 </script>
 <style>
@@ -2802,7 +2804,7 @@ span .button_wide_selected{
  display:none;
 }
 
-#usage, #model, #abbreviation, #formula{ display:none; }
+#usage_jp, #usage_en, #model, #abbreviation, #model_en, #abbreviation_en { display:none; }
 
 </style>
 </head>
@@ -2989,8 +2991,10 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 
 <hr>
 
-<a href="javascript:appear_disappear('usage');">▼説明▼</a>
-<div id="usage">
+<a href="javascript:disappear('usage_jp');appear_disappear('usage_en');">▼Usage▼</a>
+<a href="javascript:disappear('usage_en');appear_disappear('usage_jp');">▼説明▼</a>
+
+<div id="usage_jp">
 
 <h4>投与情報登録</h4>
 
@@ -3003,6 +3007,7 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 既に登録した投与量に対応する数字をクリックすると投与情報を編集できます。<br>
 新規登録画面でprevボタンを押すことでも過去の投与情報を編集できます。<br>
 持続投与の中止には0を入力してください。<br>
+薬剤投与画面の右側で単位を変更できます。<br>
 
 <h4>計算</h4>
 
@@ -3018,7 +3023,7 @@ TCI計算用モデルと評価用モデルをそれぞれ選択可能です。<b
 
 ・実線＝中心コンパートメント濃度（血中濃度）<br>
 ・影＝効果部位濃度<br>
-上画面左端に表示されるスケールは1目盛りあたりの濃度[ng/mL]を示します。<br>
+グラフ左端に表示されるスケールは1目盛りあたりの濃度[ng/mL]を示します。<br>
 例えばプロポフォールの初期設定は1000なので、縦軸1目盛りは1000ng/mL=1µg/mLを示します。<br>
 このスケールは薬剤投与画面の右上のほうで変更可能です。<br>
 <br>
@@ -3114,13 +3119,145 @@ Johnson, 2008 [PMID: 18227302] の計算式による反応消失確率のシミ�
 2022/9/21; v1.3.0; レイアウト調整、数式表示追加など<br>
 2022/9/26; v1.4.0; JSON入出力追加など<br>
 2022/10/16; v1.5.0; プロポフォール＋オピオイド効果追加など<br>
+2022/11/17; v1.5.1; 説明の英語など<br>
+</div>
+
+<div id="usage_en">
+
+<h4>Dose registration</h4>
+
+1.Click the yellow bar<br>
+2.Choose agent and type of administration (bolus/infusion)<br>
+3.Edit time if necessary, input dose, and click "OK" button (or press Enter)<br>
+ (To cancel, click "cancel" button or press Esc) <br>
+Then, drug concentration will be simulated.<br>
+<br>
+To edit dose, click the corresponding number added in the yellow bar,<br>
+ or click the corresponding row and click "prev" button.<br>
+To stop infusion, input 0 as the dose.<br>
+The unit can be changed in the right of the Drug Dosing popup.<br>
+
+<h4>Simulation</h4>
+
+Rows with the same label name are simulated together.<br>
+Rows with different label names are simulated separately.<br>
+Click the label on the left of each row to switch simulation on/off.<br>
+See the model below for details on the parameters used in the simulation.<br>
+<br>
+TCI (target controlled infusion) units are also available.<br>
+Model for TCI and one for evaluation can be chosen separately.<br>
+
+<h4>Graph</h4>
+
+・Solid line : Central compartment concentration (Plasma concentration) <br>
+・filled area : Effect site concentration<br>
+
+The scale displayed on the left edge indicates the concentration [ng/mL] per tick.
+For example, the default setting for propofol is 1000, so one tick on the vertical axis indicates 1000 ng/mL = 1 µg/mL.
+This scale can be changed in the upper right of the Drug Dosing popup.
+
+<br>
+Click buttons in upper left to adjust vertical scale.
+Click buttons in upper right to adjust horizontal scale.
+Drag the graph to scroll the time.
+Double-click the graph to jump to current time.
+
+<h4>Propofol+opioid effect</h4>
+
+Simulate the possibility of loss of response according to Johnson, 2008 [PMID: 18227302] <br>
+Only propofol and remifentanil are used in the literature,<br>
+ but here the effect site concentration of fentanyl is added, assuming the same potency as remifentanil.<br>
+<br>
+
+<h4>Compartment visualization</h4>
+
+・Red : Central compartment concentration<br>
+・Blue : Fast peripheral compartment concentration<br>
+・Green : Slow periperal compartment concentration<br>
+Click the label on the left to choose which label to visualize.<br>
+
+<h4>Output/load</h4>
+Click "↓output JSON data↓" to output the registered information in the textarea.<br>
+Paste thit and click "↑load JSON data↑" to load it, for example in another computer.<br>
+Click "↓output concentration↓" to output the concentration with specified time interval.<br>
+
+<h4>Other</h4>
+
+<a href="javascript:appear_disappear('model_en');">▼Model▼</a>
+<div id="model_en">
+<ul>
+ <li>Propofol<ul>
+  <li> Eleveld, 2018 (using age,sex,height,weight) [PMID: 29661412] </li>
+  <li> Absalom, 2005 (using age,weight) (age≦16 only) (Peadfusor) [PMID: 15941735] </li>
+  <li> Marsh, 1991 (using weight) and applying ke=0.26 as in Diprifusor&copy; [PMID: 9640110]) </li>
+ </ul></li>
+ <li>Remimazolam<ul>
+  <li> Masui, 2022 (using age,sex,height,weight,ASA-PS) [PMID: 35708787] </li>
+  <li> Doi, 2014 (using weight) (ke unavailable) [Nihon Rinshō Masui Gakkai shi Vol.34 No.7 860-866, 2014] </li>
+ </ul></li>
+ <li>Ketamine<ul>
+  <li> Kamp, 2020 (using weight) (ke unavailable) [PMID: 32997732] </li>
+ </ul></li>
+ <li>Dexmedetomidine<ul>
+  <li> Morse, 2020 (using age,sex,height,weight) (ke unavailable) [PMID: 33126702] </li>
+   <li> Hannivoort, 2015 (using weight) (ke unavailable) [PMID: 26068206] </li>
+ </ul></li>
+ <li>Fentanyl<ul>
+  <li> Bae, 2020 (using weight) [PMID: 32861508] </li>
+  <li> Shafer, 1990 (using weight) [PMID: 2248388] </li>
+ </ul></li>
+ <li>Remifentanil<ul>
+ <li> Elevelt, 2017 (using age,sex,height,weight) [PMID: 28509794] </li>
+   <li> Kim, 2017 (using age,sex,height,weight) (ke unavailable) [PMID: 28509796] </li>
+   <li> Minto, 1997 (using age,sex,height,weight) [PMID: 9009935] </li>
+ </ul></li>
+ <li>Rocuronium<ul>
+  <li> Wierda, 1991 (using weight) (ke unavailable) [PMID: 1829656] </li>
+ </ul></li>
+ <li>Vecuronium<ul>
+  <li> Rupp, 1987 (using,weight) (younger [30-57] / older [70-84]) [PMID: 2886080] </li>
+ </ul></li>
+</ul>
+</div>
+
+<br>
+
+<a href="javascript:appear_disappear('abbreviation_en');">▼Abbreviation▼</a>
+<div id="abbreviation_en">
+<ul>
+<li>IBW: ideal body weight: (used by Masui)<ul>
+ <li>45.4+0.89*(height-152.4)+4.5 for male</li>
+ <li>　45.4+0.89*(height-152.4) for female</li>
+</ul></li><li>ABW: adjusted body weight = IBW+0.4*(weight-IBW) (used by Masui)</li>
+<li>LBM: lean body mass: (used by Minto)<ul>
+ <li>1.1*weight-128*(weight/height)<sup>2</sup> for male</li>
+ <li>1.07*Weight-148*(weight/height)<sup>2</sup> for female</li>
+</ul></li><li>FFM<sub>j</sub>: fat free mass by Janmahasatian: (used by Kim)<ul>
+ <li>9270*weight/(6680+216*BMI) for male</li>
+ <li>9270*weight/(8780+244*BMI) for female</li>
+</ul></li><li>FFM<sub>AS</sub>: fat free mass by Al Sallami et al.: (used by Eleveld, Morse)<ul>
+ <li>(0.88+(1-0.88)/(1+(age/13.4)<sup>-12.7</sup>))*FFM<sub>j</sub> for male</li>
+ <li>(1.11+(1-1.11)/(1+(age/7.1)<sup>-1.1</sup>))*FFM<sub>j</sub> for female</li>
+</ul></li></ul>
+</div>
+
+<br>
+
+<h4>Version history</h4>
+2022/8/16; v1.0.0<br>
+2022/8/30; v1.1.0; More models, unit choice<br>
+2022/9/5; v1.2.0; TCI simulation<br>
+2022/9/21; v1.3.0; Layout<br>
+2022/9/26; v1.4.0; JSON load/output<br>
+2022/10/16; v1.5.0; Propofol+opioid effect<br>
+2022/11/17; v1.5.1; Language<br>
 </div>
 
 <hr>
 
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
 
-2022/10/16 v1.5.0<br>
+2022/11/12 v1.5.1<br>
 
 </div>
 </body></html>
