@@ -70,6 +70,7 @@ UnitInfoList["mg/kg/h"] = new UnitInfo(true, true, false, 1/60);
 UnitInfoList["μg/kg/min"] = new UnitInfo(true, true, false, 1/1000);
 UnitInfoList["μg/kg/h"] = new UnitInfo(true, true, false, 1/60/1000);
 UnitInfoList["mL/h"] = new UnitInfo(true, false, true, 1/60);
+UnitInfoList["mL/kg/h"] = new UnitInfo(true, true, true, 1/60);
 
 UnitInfoList["ng/mL"] = new UnitInfo(true, false, false, 1/1000);
 UnitInfoList["μg/mL"] = new UnitInfo(true, false, false, 1);
@@ -2487,7 +2488,7 @@ function load_data(){
   for(ri=0; ri<row_arr.length; ri++){
    row = Row_arr[Row_arr.length-1];
    var unit = row_arr[ri].unit;
-   unit = unit.split("ug").join("μg").split("mcg").join("μg");
+   unit = unit.split("ug").join("μg").split("mcg").join("μg").split("ml").join("mL");
    if(!UnitInfoList[unit]){
     console.log("Invalid unit");
     continue;
@@ -2656,9 +2657,10 @@ function study2(){
   }
 /* --- */
   output_arr = [];
-  var t1 = temp_object["t1"];
-  var t2 = temp_object["t2"];
+  var t1 = parseFloat(temp_object["t1"]);
+  var t2 = parseFloat(temp_object["t2"]);
   var dt = 3/60 // 3sec
+  if(temp_object["dt"]){dt = parseFloat(temp_object["dt"]);}
   var x, t_arr = [], disp_t_arr = [];
   for(x=0; x<(t2-t1)/dt; x++){
    var t = t1 + x*dt;
@@ -2926,10 +2928,12 @@ span .button_wide_selected{
 }
 
 #usage_jp, #usage_en, #model, #abbreviation, #model_en, #abbreviation_en { display:none; }
+#area1,area2,area3 {display:none;}
 
 </style>
 </head>
-<body onload="ready();document.getElementById('age').focus();" onkeydown="if(event.keyCode==13&&Setting.is_pop_up){dose_done();}if(event.keyCode==27){dose_close();}"><!--enter,esc-->
+<body>
+<div id="area1">
 Age:<input type="tel" id="age" value="60" onfocus="this.select();" oninput="load_patient();update_graph();">,
 sex:<select id="sex" onchange="load_patient();update_graph();"><option value="0">M</option><option value="1" selected>F</option></select>,
 Height:<input type="tel" id="height" value="160" onfocus="this.select();" oninput="load_patient();update_graph();">cm,
@@ -2938,7 +2942,6 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 <br>
 <span id="patient_info"></span>
 <hr>
-<div id="area1">
  <canvas id="canvas_1"></canvas>
  <canvas id="canvas_1_cursor"></canvas>
  <div id="row_container"></div>
@@ -3047,10 +3050,6 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
  </div>
 </div>
 
-<div style="margin-top:5px;">
- <a href="javascript:appear_disappear('area3');">▼Propofol+opioid effect▼</a>
-</div>
-
 <div id="area3">
  <canvas id="canvas_3"></canvas>
  <canvas id="canvas_3_cursor"></canvas>
@@ -3058,10 +3057,6 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
   <span class="x_scale_button" onclick="scale_short();">+</span><span class="x_scale_button" onclick="scale_long();">-</span> <br>
   <span class="x_scale_button" onclick="scale_prev();">&lt;</span><span class="x_scale_button" onclick="scale_next();">&gt;</span>
  </form>
-</div>
-
-<div>
- <a href="javascript:appear_disappear('area2');">▼Compartment visualization▼</a>
 </div>
 
 <div id="area2">
@@ -3096,13 +3091,20 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 </div>
 
 <div id="area_input">
- <input id="input_file" type="file" style="width:auto;"><!--onChange="study()" -->
+ <input id="input_file" type="file" style="width:auto;">
 <br>
  <a href="javascript:study();">output</a>
 </div>
 
 <hr>
-<a href="edge://settings/downloads">edge://settings/downloads</a>
+複数症例の薬剤投与情報から薬物濃度シミュレーションを一括で行います。<br>
+薬剤投与情報はJSONファイルで用意したものを上記ボタンで選択し、<br>
+outputをクリックするとcsvファイルのダウンロードで出力します。<br>
+JSONファイルの形式は<a href="sample.json">sample.json</a>を参照。<br>
+<br>
+・複数ファイルをダウンロードするための設定をしておくと良いです。edgeの場合：<br>
+edge://settings/downloads<br>
+edge://settings/content/automaticDownloads<br>
 <hr>
 
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>

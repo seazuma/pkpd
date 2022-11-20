@@ -1,0 +1,75 @@
+{
+  "sample1": {
+    "StudyID": "sample1", // 必須、ダウンロードされるファイル名となる
+    "t1": 0,  // シミュレーション開始時刻[分]必須
+    "t2": 60, // シミュレーション開始時刻[分]必須
+    "dt": 1, // 計算時間間隔[分]、任意、未指定の場合は3/60
+    "patient": { // 必須、AnesSimulator本体が出力するJSONと同じ仕様
+      "age": "60", //才
+      "sex": 1,// 0:男性、1:女性
+      "height": "150", //cm
+      "weight": "50", //kg
+      "high_ASA": "false" // ASA-PS 3,4かどうか
+    },
+    "data": { //必須、AnesSimulator本体が出力するJSONと同じ仕様
+      "Fentanyl": { //ラベル名、何でもよい
+        "agent": "Fentanyl", // 薬剤名、登録されているものと合致する必要あり
+        "row_arr": [ // 行情報、必須
+          {
+            "unit": "mL", // 単位
+            "entry_at": {
+              "10": "2" // "分":"投与量"
+            }
+          }
+        ]
+      },
+      "Propofol": {
+        "agent": "Propofol",
+        "row_arr": [
+          {
+            "unit": "mg",
+            "entry_at": {
+              "10": "70"
+            }
+          },
+          {
+            "unit": "mg/h",
+            "entry_at": {
+              "10": "250",
+              "40": "0"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "sample2": {
+    "StudyID": "sample2",
+    "t1": 0,
+    "t2": 60,
+    "dt": 1,
+    "patient": {
+      "age": "60",
+      "sex": 1,
+      "height": "150",
+      "weight": "50",
+      "high_ASA": "false"
+    },
+    "data": {
+      "Propofol": {
+        "agent": "Propofol",
+        "preset_model_g": "model_P_M1991", //計算に使うモデルの指定、任意、未指定の場合最新モデルを使用
+        "row_arr": [
+          {
+            "unit": "ug/mL", //ug,mcg,μgはどれでも認識
+            "TCI_model_g": "model_P_M1991", // TCIに使うモデルの指定、必須（未指定の場合mg/minで処理される）
+            "entry_at": {
+              "10.0": "3",
+              "40.0": "0"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
