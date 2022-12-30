@@ -2551,6 +2551,7 @@ function load_data(){
 
 function output_conc(){
  var temp_object = {};
+ var csv_data = [];
  var t1 = hm2min(document.getElementById("output_t1").value);
  var t2 = hm2min(document.getElementById("output_t2").value);
  var disp_dt = parseFloat(document.getElementById("output_dt").value);
@@ -2580,12 +2581,28 @@ function output_conc(){
   disp_t_arr.push(disp_t);
  }
  temp_object["dt_" + t_unit] = disp_t_arr.join(",");
+ csv_data.push("dt_" + t_unit + "," + disp_t_arr.join(","))
  for(label in LabelInfoList){
   var labelinfo = LabelInfoList[label];
   temp_object[label] = labelinfo.simulate_t_arr(t_arr);
+  for(key in temp_object[label]){
+   csv_data.push(label + ":" + key + "," + temp_object[label][key]);
+  }
  }
  document.getElementById("output_conc_area").value = JSON.stringify(temp_object, null, 1).replace(/\"/g, "");
+ if( document.getElementById("output_csv").checked ){
+  var filename = "output.csv";
+  var blob = new Blob([csv_data.join("\n")],{type:"text/csv"});
+  if (window.navigator.msSaveBlob) {
+   window.navigator.msSaveBlob(blob, filename);
+  }
+  var mylink = document.createElement('a');
+  mylink.href = URL.createObjectURL(blob);
+  mylink.download = filename;
+  mylink.click();
+ }
 }
+/* https://into-the-program.com/javascript-download-csv/ */
 
 </script>
 <style>
@@ -3038,8 +3055,10 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
  <input type="tel" id="output_t1"> <span lang="ja">から</span><span lang="en">to</span> <input type="tel" id="output_t2">
  <span lang="ja">、時間間隔</span><span lang="en"> with offset </span>
  <input type="tel" id="output_dt" value="1"><select id="output_t_scale"><option value="1" selected>min</option><option value="60">sec</option></select>
+ <input type="checkbox" id="output_csv"><span lang="ja">csvとしてダウンロード</span><span lang="en">save as csv</span>
 <br>
  <textarea id="output_conc_area" rows="5" wrap="off"></textarea>
+ <div id="csv_link"></div>
 </div>
 
 <hr>
@@ -3057,21 +3076,14 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 3.必要に応じて時刻を変更し、投与量を入力し、OKボタンクリックあるいはEnterキー<br>
 （取消ボタンクリックあるいはEscキーで取消）<br>
 以上の操作で投与情報が登録され、薬物濃度が計算されます。<br>
+（計算に用いたパラメータは下記「その他の情報」のモデルを参照）<br>
 <br>
 既に登録した投与量に対応する数字をクリックすると投与情報を編集できます。<br>
 該当の行をクリックして投与量入力画面で「前」ボタンを押すことでも過去の投与情報を編集できます。<br>
 持続投与の中止には0を入力してください。<br>
-投与量入力画面の右側の単位名をクリックすると単位を変更できます。<br>
-
-<h4>計算</h4>
-
-同じラベル名はまとめて計算され、異なるラベル名は区別して計算されます。<br>
-（ラベル名は投与量入力画面の右上で編集できます）<br>
-行の左端のラベルをクリックすると計算の有無を切り替えられます。<br>
-（無効にした行は背景が黒くなり、ラベル名に打ち消し線がつきます）<br>
 <br>
-持続投与の単位でTCIを選択可能です。<br>
-TCI計算用モデルと評価用モデルをそれぞれ選択可能です。<br>
+投与量入力画面の右側の単位名をクリックすると単位を変更できます。<br>
+持続投与で血中濃度TCIを選択した場合、TCIモデルと評価用モデルをそれぞれ選択可能です。<br>
 
 <h4>グラフ</h4>
 
@@ -3080,6 +3092,11 @@ TCI計算用モデルと評価用モデルをそれぞれ選択可能です。<b
 グラフ左端に表示されるスケールは1目盛りあたりの濃度[ng/mL]を示します。<br>
 例えばプロポフォールの初期設定は1000なので、縦軸1目盛りは1000ng/mL=1µg/mLを示します。<br>
 このスケールは薬剤投与画面の右上のほうで変更可能です。<br>
+<br>
+同じラベル名はまとめて計算され、異なるラベル名は区別して計算されます。<br>
+（ラベル名は投与量入力画面の右上で編集できます）<br>
+行の左端のラベルをクリックすると計算の有無を切り替えられます。<br>
+（無効にした行は背景が黒くなり、ラベル名に打ち消し線がつきます）<br>
 <br>
 左上のボタンで縦軸のスケールを変更できます。<br>
 右上のボタンで横軸のスケールを変更できます。<br>
@@ -3094,15 +3111,17 @@ Johnson, 2008 [PMID: 18227302] の計算式による反応消失確率などの�
 
 <h4>コンパートメント可視化</h4>
 
+左のボタンクリックで可視化するラベルを切り替えます。<br>
 ・赤＝中心コンパートメント濃度<br>
 ・青＝速い蓄積コンパートメント濃度<br>
 ・緑＝遅い蓄積コンパートメント濃度<br>
-左にあるボタンクリックで可視化するラベルを切り替えます。<br>
 
 <h4>出力・読み込み</h4>
 「↓出力↓」をクリックすると、登録情報をテキストエリアに出力します。<br>
 これを別のウィンドウや他の端末のこの欄に貼り付ければ「↑読み込み↑」を使って復元できます。<br>
+<br>
 「↓濃度出力↓」をクリックすると、設定した時間刻みでの薬物濃度を出力します。<br>
+チェックボックスを入れることによりcsvとしてダウンロードもできます。<br>
 
 <h4>その他の情報</h4>
 
@@ -3119,21 +3138,13 @@ Johnson, 2008 [PMID: 18227302] の計算式による反応消失確率などの�
 3.Edit time if necessary, input dose, and click "OK" button (or press Enter)<br>
  (To cancel, click "cancel" button or press Esc) <br>
 Then, drug concentration will be simulated.<br>
+ (See the model in Other section below for details on the parameters used in the simulation.)<br>
 <br>
 To edit dose, click the corresponding number added in the yellow bar,<br>
  or click the corresponding row and click "prev" button.<br>
 To stop infusion, input 0 as the dose.<br>
-The unit can be changed by clicking the unit in the right of the Drug Dosing popup.<br>
-
-<h4>Simulation</h4>
-
-Rows with the same label name are simulated together.<br>
-Rows with different label names are simulated separately.<br>
-(Label can be editted in the upper right of the Drug Dosing popup.)<br>
-Click the label on the left of each row to switch simulation on/off.<br>
-(Row in off state is indicated by strikethrough and black background color.)<br>
-See the model below for details on the parameters used in the simulation.<br>
 <br>
+The unit can be changed by clicking the unit in the right of the Drug Dosing popup.<br>
 TCI (target controlled infusion) units are also available.<br>
 Model for TCI and one for evaluation can be chosen separately.<br>
 
@@ -3142,10 +3153,15 @@ Model for TCI and one for evaluation can be chosen separately.<br>
 ・Solid line : Central compartment concentration (Plasma concentration) <br>
 ・filled area : Effect site concentration<br>
 
-The scale displayed on the left edge indicates the concentration [ng/mL] per tick.
-For example, the default setting for propofol is 1000, so one tick on the vertical axis indicates 1000 ng/mL = 1 µg/mL.
-This scale can be changed in the upper right of the Drug Dosing popup.
-
+The scale displayed on the left edge indicates the concentration [ng/mL] per tick.<br>
+For example, the default setting for propofol is 1000, so one tick on the vertical axis indicates 1000 ng/mL = 1 µg/mL.<br>
+This scale can be changed in the upper right of the Drug Dosing popup.<br>
+<br>
+Rows with the same label name are simulated together.<br>
+Rows with different label names are simulated separately.<br>
+(Label can be editted in the upper right of the Drug Dosing popup.)<br>
+Click the label on the left of each row to switch simulation on/off.<br>
+(Row in off state is indicated by strikethrough and black background color.)<br>
 <br>
 Click buttons in upper left to adjust vertical scale.
 Click buttons in upper right to adjust horizontal scale.
@@ -3161,15 +3177,16 @@ Only propofol and remifentanil are used in the literature,<br>
 
 <h4>Compartment visualization</h4>
 
+Click the label on the left to choose which label to visualize.<br>
 ・Red : Central compartment concentration<br>
 ・Blue : Fast peripheral compartment concentration<br>
 ・Green : Slow periperal compartment concentration<br>
-Click the label on the left to choose which label to visualize.<br>
 
 <h4>Output/load</h4>
-Click "↓output JSON data↓" to output the registered information in the textarea.<br>
-Paste thit and click "↑load JSON data↑" to load it, for example in another computer.<br>
-Click "↓output concentration↓" to output the concentration with specified time interval.<br>
+Click "↓output↓" to output the registered information in the textarea.<br>
+Paste thit and click "↑load↑" to load it, for example in another window or another computer.<br>
+Click "↓output concentration↓" to output the concentration with specified time range.<br>
+Activate the checkbox to save as a csv file.<br>
 
 <h4>Other</h4>
 
@@ -3303,7 +3320,7 @@ Click "↓output concentration↓" to output the concentration with specified ti
 2022/10/16; v1.5.0; プロポフォール＋オピオイド効果追加など<br>
 2022/11/17; v1.5.1; 説明の英語など<br>
 2022/12/4; v1.5.2; 不具合修正<br>
-2022/12/31; v1.5.3; 説明、タッチ挙動の改善<br>
+2022/12/31; v1.5.3; 表面的な改善<br>
 </div>
 <div lang="en">
 <h4>Version history</h4>
@@ -3315,7 +3332,7 @@ Click "↓output concentration↓" to output the concentration with specified ti
 2022/10/16; v1.5.0; Propofol+opioid effect<br>
 2022/11/17; v1.5.1; Language<br>
 2022/12/4; v1.5.2; Fix bug<br>
-2022/12/31; v1.5.3; Improve usage, touch behavior<br>
+2022/12/31; v1.5.3; Superficial improvement<br>
 </div>
 
 </div><!-- id=usage -->
