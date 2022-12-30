@@ -1,11 +1,31 @@
 ﻿<!DOCTYPE html>
-<html><head>
+<html lang="ja"><head>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <meta name="viewport" content="width=750">
 <title>AnesSimulator</title>
 <script>
-// for debug
-// function d(x){return document.getElementById(x);}
+var Lang = "ja";
+
+function changeLang(y){
+ Lang = y;
+ var i, elm_lang, elms = document.getElementsByTagName("div");
+ for (i = 0; i < elms.length; i++) {
+  if(elm_lang = elms[i].lang){
+   elms[i].style.display = elm_lang==y? "block": "none";
+  }
+ }
+ elms = document.getElementsByTagName("span");
+ for (i = 0; i < elms.length; i++) {
+  if(elm_lang = elms[i].lang){
+   elms[i].style.display = elm_lang==y? "inline": "none";
+  }
+ }
+ elms = document.getElementById("selectLang").children;
+ for (i = 0; i < elms.length; i++) {
+  setClass( elms[i], "button_wide");
+ }
+ setClass( document.getElementById("select_"+y), "button_wide_selected");
+}
 
 // default units are mg, min, L
 
@@ -25,13 +45,12 @@ var ctx_font = ctx_font_size + "px sans-serif";
 var Compart_color_arr = ["red","blue","green"]; // for canvas2
 var CompLineWidth = 80;
 
-var Date_now = new Date();
 var Canvas_common = {
  is_moving: false,
  y_scale: 0, // 1st line = Math.pow(2,y_scale)
  t_scale_150: 60, // time[min] per 150 px
  t_scale: 0.2, // time[min] per px
- t1: Date_now.getHours()*60, // time at origin
+ t1: new Date().getHours()*60, // time at origin
  dx : 1, // plot_interval [px]
  x_arr: [],
  ready: function(){
@@ -394,6 +413,7 @@ function ready(){ // onload function
   W = document.body.clientWidth;
   canvas_resize();
  };
+ changeLang(Lang);
 }
 
 /* sorted array */
@@ -639,7 +659,7 @@ var Row = function(){
  dosearea_div.style.height = row_H - 1 + "px";
  dosearea_div.setAttribute("n", this.n);
  if(this.n==0){
-  dosearea_div.innerHTML = "--- Click here for simulation ---";
+  dosearea_div.innerHTML = '--- <span lang="ja">シミュレーション開始にはここをクリック</span><span lang="en">Click here for simulation</span> ---';
   dosearea_div.style.textAlign = "center";
  }
  setClass(dosearea_div, "dosearea");
@@ -678,7 +698,7 @@ function label_click(e){
  var row = Row_arr[n];
  if(row.labelinfo.preset_model_g == model_P_A2005 || row.TCI_model_g == model_P_A2005 ){
   if( Current_patient.age>16 && row.labelarea_div.className == "labelarea_off" ) {
-   alert("Model only valid for age≦16");return;
+   alert(Lang=="en"?"This model is only valid for age≦16":"このモデルは16歳以下のみ有効です");return;
  }}
  setClass(row.dosearea_div, div.className == "labelarea_off"? "dosearea": "dosearea_off");
  setClass(div, div.className == "labelarea_off"? "labelarea_on": "labelarea_off");
@@ -689,7 +709,7 @@ Row.prototype.register = function(label, unit_span){
  this.label = label;
  this.unit_span = unit_span; // botton in pop_up
  this.unit = unit_span.innerHTML;
- if(this.dosearea_div.innerHTML == "--- Click here for simulation ---"){ this.dosearea_div.innerHTML = ""; }
+ if(this.dosearea_div.innerHTML.substring(0,3) == "---"){ this.dosearea_div.innerHTML = ""; }
  if(!this.labelarea_div){
   var labelarea_div = document.createElement('div');
   setClass(labelarea_div, "labelarea_on");
@@ -1243,7 +1263,7 @@ function canvas_ready(){
  canvas_1_cursor.ondblclick = function(e){ scale_now(); };
  canvas_1_cursor.ondragstart = function(){ return false; };
  canvas_1_cursor.onmousedown = function(e) {
-  Canvas_common.is_moving = true;
+  canvas1_timer = setTimeout("Canvas_common.is_moving = true",500);
   Canvas_common.moving_from = e.pageX;
  };
  canvas_1_cursor.onmousemove = function(e) {
@@ -1268,7 +1288,9 @@ function canvas_ready(){
   var y = e.clientY - MouseRect.top;
   canvas3_cross( x,y, false );
  };
- canvas_1_cursor.onmouseup = function(e) { if(Canvas_common.is_moving){
+ canvas_1_cursor.onmouseup = function(e) {
+  clearTimeout(canvas1_timer);
+  if(Canvas_common.is_moving){
    ctx_1_cursor.clearRect(0, 0, W, H);
    var dx = Math.round ( (e.pageX - Canvas_common.moving_from)/75 ) * 75;
    update_x_axis(Canvas_common.t1 - dx * Canvas_common.t_scale, Canvas_common.t_scale_150);
@@ -1276,6 +1298,7 @@ function canvas_ready(){
    delete(Canvas_common.moving_from);
  }};
  canvas_1_cursor.onmouseout = function() {
+  clearTimeout(canvas1_timer);
   if(Canvas_common.is_moving){
    Canvas_common.is_moving = false;
    delete(Canvas_common.moving_from);
@@ -1402,11 +1425,12 @@ function update_graph(){
   plot_graph(ctx_3, Canvas_common.x_arr, y_ratio);
  }
 }
+
 var EffectList=[
- {label:"Loss of response to pressure algometry", C50p:4.2, C50r:8.8, n:8.3, alpha:8.2, color:"red"},
- {label:"Loss of response to electrical tetany", C50p:4.6, C50r:23.1, n:6.0, alpha:14.7, color:"blue"},
- {label:"Loss of response to laryngoscopy", C50p:5.6, C50r:48.9, n:2.2, alpha:33.2, color:"green"},
- {label:"Loss of responsiveness", C50p:2.2, C50r:33.1, n:50, alpha:3.6, color:"purple"}
+ {label_ja:"圧痛計への反応消失", label_en:"Loss of response to pressure algometry", C50p:4.2, C50r:8.8, n:8.3, alpha:8.2, color:"red"},
+ {label_ja:"テタニー刺激への反応消失", label_en:"Loss of response to electrical tetany", C50p:4.6, C50r:23.1, n:6.0, alpha:14.7, color:"blue"},
+ {label_ja:"喉頭鏡への反応消失", label_en:"Loss of response to laryngoscopy", C50p:5.6, C50r:48.9, n:2.2, alpha:33.2, color:"green"},
+ {label_ja:"応答消失", label_en:"Loss of responsiveness", C50p:2.2, C50r:33.1, n:50, alpha:3.6, color:"purple"}
 ];
 
 function draw_axis(ctx,dy,y_unit){
@@ -1528,11 +1552,12 @@ function yscale_long(){
  update_graph();
 }
 
-
 /* touchevent */
 
+var canvas1_timer;
+
 function canvas_1_touchstart(e){
- Canvas_common.is_moving = true;
+ canvas1_timer = setTimeout( "Canvas_common.is_moving = true", 500);
  Canvas_common.moving_from = e.changedTouches[0].pageX;
 }
 function canvas_1_touchmove(e){
@@ -1574,13 +1599,12 @@ function canvas_1_touchend(e){
   Canvas_common.is_moving = false;
   delete(Canvas_common.moving_from);
  } else {
+  clearTimeout(canvas1_timer);
   var MouseRect = e.target.getBoundingClientRect();
   var x = e.changedTouches[0].pageX - MouseRect.left;
   var y = e.changedTouches[0].pageY - MouseRect.top;
   canvas1_cross( x,y );
 }};
-
-// var Canvas1CrossFix = false;
 
 function delete_cursor(){
  ctx_1_cursor.clearRect(0, 0, W, H);
@@ -1672,11 +1696,11 @@ function canvas3_cross( x,y ){
  var t = x2t(x);
  for(label in LabelInfoList){
   var labelinfo = LabelInfoList[label];
-  if (labelinfo.agent == "P"){
+  if (labelinfo.agent == "Propofol"){
    var C = labelinfo.simulate_t_arr([t]);
    E_p += parseFloat(C.Ce_ng_mL);
   }
-  if (labelinfo.agent == "RF" || labelinfo.agent == "F"){
+  if (labelinfo.agent == "Remifentanil" || labelinfo.agent == "Fentanyl"){
    var C = labelinfo.simulate_t_arr([t]);
    E_o += parseFloat(C.Ce_ng_mL);
   }
@@ -1687,7 +1711,7 @@ function canvas3_cross( x,y ){
   var denom = numer + 1;
   ratio = 100*numer/denom;
   ctx_3_cursor.fillStyle = effect.color;
-  var txt = effect.label + ":" + myPrecision(ratio) + "%";
+  var txt = effect["label_"+Lang] + ":" + myPrecision(ratio) + "%";
   ctx_3_cursor.textAlign = x>W/2? "right": "left";
   ctx_3_cursor.textBaseline = y>80? "alphabetic":"top";
   ctx_3_cursor.fillText(txt , x, y-2 + ((y>80?0:3)-ei)*18);
@@ -1926,7 +1950,7 @@ function model_ready(div, preset_model_arr, mode){
  var i,button_div = null;
  if(mode == "TCI"){
   var divchild = document.createElement("div");
-  divchild.innerHTML = "TCI model:"
+  divchild.innerHTML = "TCIモデル:"
   div.appendChild(divchild);
  }
  for(i=0; i<preset_model_arr.length; i++){
@@ -1944,7 +1968,7 @@ function model_ready(div, preset_model_arr, mode){
 }}}
 
 function edit_mode(b){
- document.getElementById("pop_up_mode").innerHTML = b?"Edit mode":"Add mode";
+ document.getElementById("pop_up_mode").innerHTML = Lang=="en"? (b?"Edit mode":"Add mode"): (b?"編集モード":"追加モード");
  setClass(document.getElementById("pop_up_mode"), b?"mild_label_2":"mild_label");
  if(b){ appear("delete_entry_button"); }
  else{ disappear("delete_entry_button"); }
@@ -2171,7 +2195,11 @@ function dose_next(){
 }
 function delete_current_row(){
  var n = Setting.row.n;
- if(!confirm("Are you sure to delete all data in this row " + Setting.row.label+"("+ Setting.row.unit + ")?"))return;
+ if(!confirm(
+  Lang=="en"?
+  "Are you sure to delete all data in this row " + Setting.row.label+"("+ Setting.row.unit + ")?":
+  "行" + Setting.row.label+"("+ Setting.row.unit + ")を削除します"
+  ))return;
  delete_row(n);
 }
 function delete_row(n){
@@ -2447,7 +2475,7 @@ function load_data(){
   console.log("No data");
   return;
  }
- if(!confirm("Are you sure to remove current data?"))return;
+ if(!confirm(Lang=="en"?"Are you sure to remove current data?":"現在の情報は上書きされます"))return;
  if(temp_object.patient){
   document.getElementById("age").value = temp_object.patient.age;
   document.getElementById("sex").value = temp_object.patient.sex;
@@ -2725,7 +2753,7 @@ span .button_wide_selected{
  background-color:#ddffcc;
 }
 .dosearea_off{
- background-color:#eeeeff;
+ background-color:#777777;
 }
 
 .labelarea_on, .labelarea_off{
@@ -2739,6 +2767,7 @@ span .button_wide_selected{
  border: 3px outset;
  background-color: #eeffff;
  left:0px;
+ text-decoration: line-through;
 }
 
 .dose_each{
@@ -2802,15 +2831,17 @@ span .button_wide_selected{
  display:none;
 }
 
-#usage_jp, #usage_en, #model, #abbreviation, #model_en, #abbreviation_en { display:none; }
+#usage, #model, #abbreviation, #model_en, #abbreviation_en { display:none; }
 
 </style>
 </head>
-<body onload="ready();document.getElementById('age').focus();" onkeydown="if(event.keyCode==13&&Setting.is_pop_up){dose_done();}if(event.keyCode==27){dose_close();}"><!--enter,esc-->
-Age:<input type="tel" id="age" value="60" onfocus="this.select();" oninput="load_patient();update_graph();">,
-sex:<select id="sex" onchange="load_patient();update_graph();"><option value="0">M</option><option value="1" selected>F</option></select>,
-Height:<input type="tel" id="height" value="160" onfocus="this.select();" oninput="load_patient();update_graph();">cm,
-Weight:<input type="tel" id="weight" value="50" onfocus="this.select();" oninput="load_patient();update_graph();">kg,
+<body onload="ready();document.getElementById('age').focus();" onkeydown="if(event.keyCode==13&&Setting.is_pop_up){dose_done();}if(event.keyCode==27){dose_close();}">
+
+<!-- 13:Enter, 27:Esc -->
+<span lang="ja">年齢</span><span lang="en">Age</span>:<input type="tel" id="age" value="60" onfocus="this.select();" oninput="load_patient();update_graph();">,
+<span lang="ja">性別</span><span lang="en">Sex</span>:<select id="sex" onchange="load_patient();update_graph();"><option value="0">M</option><option value="1" selected>F</option></select>,
+<span lang="ja">身長</span><span lang="en">Height</span>:<input type="tel" id="height" value="160" onfocus="this.select();" oninput="load_patient();update_graph();">cm,
+<span lang="ja">体重</span><span lang="en">Weight</span>:<input type="tel" id="weight" value="50" onfocus="this.select();" oninput="load_patient();update_graph();">kg,
 ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option value="0" selected>1,2</option><option value="1">3,4</option></select>
 <br>
 <span id="patient_info"></span>
@@ -2833,19 +2864,21 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
  <div class="form" id="PU_1_rowinfo">
   <div id="PU_1_agent_list"></div>
 <hr>
-  <div class="button_wide" onclick="dose_close();">cancel</div>
-  <div class="button_delete" onclick="delete_current_row();" id="delete_row_button">Delete row</div>
+  <div class="button_wide" onclick="dose_close();" lang="ja">取消</div>
+  <div class="button_wide" onclick="dose_close();" lang="en">cancel</div>
+  <div class="button_delete" onclick="delete_current_row();" id="delete_row_button"><span lang="ja">行削除</span><span lang="en">Delete row</span></div>
  </div>
 
 <!--  pop up 2 -->
  <div class="form" id="PU_2_entry">
   <form onsubmit="event.preventDefault();dose_done();return false;">
-   <span class="mild_label" id="pop_up_mode">Add mode</span>
-   <span class="button_invalid" id="dose_prev_button" onclick="dose_prev();event.preventDefault();">prev</span>
-   <span class="button_invalid" id="dose_next_button" onclick="dose_next();event.preventDefault();">next</span>
+   <span class="mild_label" id="pop_up_mode" lang="ja"><span lang="ja">追加モード</span><span lang="en">Add mode</span></span>
+   <span class="button_invalid" id="dose_prev_button" onclick="dose_prev();event.preventDefault();"><span lang="ja">前</span><span lang="en">prev</span></span>
+   <span class="button_invalid" id="dose_next_button" onclick="dose_next();event.preventDefault();"><span lang="ja">次</span><span lang="en">next</span></span>
 <br>
-   Time: <input type="tel" id="entry_time" value="">
-   <span class="button_wide" onclick="set_time_now();">Now</span>
+   <span lang="ja">時刻</span><span lang="en">Time</span>: <input type="tel" id="entry_time" value="">
+   <span class="button_wide" onclick="set_time_now();" lang="ja">現在</span>
+   <span class="button_wide" onclick="set_time_now();" lang="en">Now</span>
    <span id="pop_up_overwriting">Overwriting</span>
 <br>
    <span class="button" onclick="entry_time_c(-10);">&lt;&lt;</span>
@@ -2855,7 +2888,7 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
   </form>
 <hr>
   <form onsubmit="event.preventDefault();dose_done();return false;">
-   Dose:
+   <span lang="ja">投与量</span><span lang="en">Dose</span>:
    <input type="tel" id="dose" oninput="change_unit_val(null);">
    <span id="dose_unit"></span>
 <br>
@@ -2867,22 +2900,22 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
    <span class="button" onclick="dose_input(4)">4</span>
    <span class="button" onclick="dose_input(5)">5</span>
    <span class="button" onclick="dose_input(6)">6</span>
-   <span class="button" onclick="dose_input('clear')">clear</span>
+<!--   <span class="button" onclick="dose_input('clear')"><span lang="ja">削除</span><span lang="en">clear</span></span>-->
 <br>
    <span class="button" onclick="dose_input(1)">1</span>
    <span class="button" onclick="dose_input(2)">2</span>
    <span class="button" onclick="dose_input(3)">3</span>
-   <span class="button" onclick="dose_close();">cancel</span>
+<!--   <span class="button" onclick="dose_close();"><span lang="ja">取消</span><span lang="en">cancel</span></span>-->
 <br>
    <span class="button" onclick="dose_input(0)">0</span>
    <span class="button" onclick="dose_input('.')">.</span>
    <span class="button" id="dose_done_button" style="width:100px;" onclick="dose_done();">OK</span>
 <br>
-   <div class="button_delete" onclick="dose_delete();" id="delete_entry_button">Delete entry</div>
+   <div class="button_delete" onclick="dose_delete();" id="delete_entry_button"><span lang="ja">投与情報削除</span><span lang="en">Delete entry</span></div>
   </form>
 <hr>
-  Model:
-  <a href="javascript:manual_param_switch();">▼Edit model▼</a>
+  <div lang="ja"><a href="javascript:manual_param_switch();">▼パラメータ変更▼</a></div>
+  <div lang="en"><a href="javascript:manual_param_switch();">▼Edit parameter▼</a></div>
   <div id="PU_manual_model">
    <div class="item" i="0">V1=<input type="tel" onfocus="this.select();" oninput="manual_param(this);"><span onclick="preset_param(this);" class="button_wide">Preset</span><span onclick="previous_param(this,false);" class="button_wide">Previous</span></div>
    <div class="item" i="1">V2=<input type="tel" onfocus="this.select();" oninput="manual_param(this);"><span onclick="preset_param(this);" class="button_wide">Preset</span><span onclick="previous_param(this,false);" class="button_wide">Previous</span></div>
@@ -2896,12 +2929,15 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 
 <!-- pop up 3: setting -->
  <div class="form_minor" id="PU_3_labelinfo" onsubmit="alert(3)">
-  Label: <input type="tel" id="PU_3_label" oninput="change_label(this);"><br>
-  Color: <input type="color" id="PU_3_color" style="width:60px;"><br>
-  Y-scale: <input type="tel" id="PU_3_scale" onfocus="this.select();">ng/mL<br>
-  Conc.: <input type="tel" id="PU_3_mgmL" onfocus="this.select();" oninput="change_mgmL(this);">mg/mL<br>
+  <span lang="ja">ラベル</span><span lang="en">Label</span>:
+   <input type="tel" id="PU_3_label" oninput="change_label(this);"><br>
+  <span lang="ja">色</span><span lang="en">Color</span>:
+   <input type="color" id="PU_3_color" style="width:60px;"><br>
+  <span lang="ja">スケール</span><span lang="en">Y-scale</span>:
+   <input type="tel" id="PU_3_scale" onfocus="this.select();">ng/mL<br>
+  <span lang="ja">濃度</span><span lang="en">Conc.</span>: <input type="tel" id="PU_3_mgmL" onfocus="this.select();" oninput="change_mgmL(this);">mg/mL<br>
 <hr>
-  Unit:
+  単位:
   <div id="select_bolus_unit">
    <div class="item"><input type="tel" onfocus="this.select();" oninput="change_unit_val(this);"><span onclick="change_unit(this,true);" class="button_wide">mg</span></div>
    <div class="item"><input type="tel" onfocus="this.select();" oninput="change_unit_val(this);"><span onclick="change_unit(this,true);" class="button_wide">μg</span></div>
@@ -2919,12 +2955,16 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
   </div>
   <div id="TCI_model"></div>
 <hr>
-  Preset model:
+  <div lang="ja">評価モデル:</div>
+  <div lang="en">Preset model:</div>
   <div id="preset_model"></div>
  </div>
 </div>
 
-<div style="margin-top:5px;">
+<div style="margin-top:5px;" lang="ja">
+ <a href="javascript:appear_disappear('area3');">▼プロポフォール＋オピオイド効果▼</a>
+</div>
+<div style="margin-top:5px;" lang="en">
  <a href="javascript:appear_disappear('area3');">▼Propofol+opioid effect▼</a>
 </div>
 
@@ -2937,9 +2977,8 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
  </form>
 </div>
 
-<div>
- <a href="javascript:appear_disappear('area2');">▼Compartment visualization▼</a>
-</div>
+<div lang="ja"><a href="javascript:appear_disappear('area2');">▼コンパートメント可視化▼</a></div>
+<div lang="en"><a href="javascript:appear_disappear('area2');">▼Compartment visualization▼</a></div>
 
 <div id="area2">
  <canvas id="canvas_2"></canvas>
@@ -2957,7 +2996,8 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
  <div class="compline_info" id="compline_info_13"></div>
  <div class="compline_info" id="compline_info_10"></div>
  <div class="compline_info" id="compequation">
-  <a href="javascript:expand_equation();">▼Equation▼</a><br>
+  <div lang="ja"><a href="javascript:expand_equation();">▼式▼</a></div>
+  <div lang="en"><a href="javascript:expand_equation();">▼Equation▼</a></div>
   <span id="compequation_inner"></span>
  </div>
  <div id="comp_out"></div>
@@ -2972,16 +3012,29 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
  </form>
 </div>
 
-<div>
+<div lang="ja">
+ <a href="javascript:appear_disappear('area_output_load');">▼出力・読み込み▼</a>
+</div>
+<div lang="en">
  <a href="javascript:appear_disappear('area_output_load');">▼Output/Load▼</a>
 </div>
 
 <div id="area_output_load" style="display:none;">
- <a href="javascript:output_data();">↓output JSON data↓</a>
- <a href="javascript:load_data();">↑load JSON data↑</a><br>
+ <span lang="ja">
+  <a href="javascript:output_data();">↓出力↓</a>
+  <a href="javascript:load_data();">↑読み込み↑</a>
+ </span>
+ <span lang="en">
+  <a href="javascript:output_data();">↓output↓</a>
+  <a href="javascript:load_data();">↑load↑</a>
+ </span>
+<br>
  <textarea id="output_data_area" rows="5" wrap="off"></textarea>
 <br>
- <a href="javascript:output_conc();">↓output concentration↓</a> from <input type="tel" id="output_t1"> to <input type="tel" id="output_t2"> with offset
+ <span lang="ja"><a href="javascript:output_conc();">↓濃度出力↓</a></span>
+ <span lang="en"><a href="javascript:output_conc();">↓output concentration↓</a> from </span>
+ <input type="tel" id="output_t1"> <span lang="ja">から</span><span lang="en">to</span> <input type="tel" id="output_t2">
+ <span lang="ja">、時間間隔</span><span lang="en"> with offset </span>
  <input type="tel" id="output_dt" value="1"><select id="output_t_scale"><option value="1" selected>min</option><option value="60">sec</option></select>
 <br>
  <textarea id="output_conc_area" rows="5" wrap="off"></textarea>
@@ -2989,17 +3042,18 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 
 <hr>
 
-<a href="javascript:disappear('usage_jp');appear_disappear('usage_en');">▼Usage▼</a>
-<a href="javascript:disappear('usage_en');appear_disappear('usage_jp');">▼説明▼</a>
+<div lang="ja"><a href="javascript:appear_disappear('usage');">▼説明▼</a></div>
+<div lang="en"><a href="javascript:appear_disappear('usage');">▼Usage▼</a></div>
 
-<div id="usage_jp">
+<div id="usage">
 
+<div lang="ja">
 <h4>投与情報登録</h4>
 
 1.黄色いバーをクリック<br>
-2.薬剤名と投与方法（ボーラス・持続）を選択<br>
+2.薬剤名と投与方法（ボーラス・持続）に該当する単位をクリックして選択<br>
 3.必要に応じて時刻を変更し、投与量を入力し、OKボタンクリックあるいはEnterキー<br>
-（cancelボタンクリックあるいはEscキーで中止）<br>
+（取消ボタンクリックあるいはEscキーで取消）<br>
 以上の操作で投与情報が登録され、薬物濃度が計算されます。<br>
 <br>
 既に登録した投与量に対応する数字をクリックすると投与情報を編集できます。<br>
@@ -3009,10 +3063,10 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 
 <h4>計算</h4>
 
-同じラベル名はまとめて計算されます。<br>
-異なるラベル名にすると区別して計算されます。<br>
+同じラベル名はまとめて計算され、異なるラベル名は区別して計算されます。<br>
+（ラベル名は投与量入力画面の右上で編集できます）<br>
 行の左端のラベルをクリックすると計算の有無を切り替えられます。<br>
-計算に用いたパラメータの詳細は後述のモデルを参照。<br>
+（無効な行は背景が黒く、ラベル名に打ち消し線がつきます）<br>
 <br>
 持続投与の単位でTCIを選択可能です。<br>
 TCI計算用モデルと評価用モデルをそれぞれ選択可能です。<br>
@@ -3032,9 +3086,9 @@ TCI計算用モデルと評価用モデルをそれぞれ選択可能です。<b
 
 <h4>プロポフォール＋オピオイド効果</h4>
 
-Johnson, 2008 [PMID: 18227302] の計算式による反応消失確率のシミュレーションです。<br>
+Johnson, 2008 [PMID: 18227302] の計算式による反応消失確率などのシミュレーションです。<br>
 文献ではプロポフォール・レミフェンタニルの組み合わせですが、<br>
-ここではフェンタニルとレミフェンタニルが同じ力価と仮定して加算しています。<br>
+ここではレミフェンタニルもフェンタニルと同じ力価と仮定して加算しています。<br>
 
 <h4>コンパートメント可視化</h4>
 
@@ -3044,84 +3098,17 @@ Johnson, 2008 [PMID: 18227302] の計算式による反応消失確率のシミ�
 左にあるボタンクリックで可視化するラベルを切り替えます。<br>
 
 <h4>出力・読み込み</h4>
-↓output JSON data↓をクリックすると、登録情報をテキストエリアに出力します。<br>
-これを保存しておくことで例えば他の端末で↑load JSON data↑を使って復元できます。<br>
-↓output concentration↓をクリックすると、設定した時間刻みでの薬物濃度を出力します。<br>
+「↓出力↓」をクリックすると、登録情報をテキストエリアに出力します。<br>
+これを別のウィンドウや他の端末のこの欄に貼り付ければ「↑読み込み↑」を使って復元できます。<br>
+「↓濃度出力↓」をクリックすると、設定した時間刻みでの薬物濃度を出力します。<br>
 
 <h4>その他の情報</h4>
 
 <a href="javascript:appear_disappear('model');">▼モデル▼</a>
-<div id="model">
-<ul>
- <li>Propofol<ul>
-  <li> Eleveld, 2018 (using age,sex,height,weight) [PMID: 29661412] </li>
-  <li> Absalom, 2005 (using age,weight) (age≦16 only) (Peadfusor) [PMID: 15941735] </li>
-  <li> Marsh, 1991 (using weight) and applying ke=0.26 as in Diprifusor&copy; [PMID: 9640110]) </li>
- </ul></li>
- <li>Remimazolam<ul>
-  <li> Masui, 2022 (using age,sex,height,weight,ASA-PS) [PMID: 35708787] </li>
-  <li> Doi, 2014 (using weight) (ke unavailable) [日本臨床麻酔科学会誌 Vol.34 No.7 860-866, 2014] </li>
- </ul></li>
- <li>Ketamine<ul>
-  <li> Kamp, 2020 (using weight) (ke unavailable) [PMID: 32997732] </li>
- </ul></li>
- <li>Dexmedetomidine<ul>
-  <li> Morse, 2020 (using age,sex,height,weight) (ke unavailable) [PMID: 33126702] </li>
-   <li> Hannivoort, 2015 (using weight) (ke unavailable) [PMID: 26068206] </li>
- </ul></li>
- <li>Fentanyl<ul>
-  <li> Bae, 2020 (using weight) [PMID: 32861508] </li>
-  <li> Shafer, 1990 (using weight) [PMID: 2248388] </li>
- </ul></li>
- <li>Remifentanil<ul>
- <li> Elevelt, 2017 (using age,sex,height,weight) [PMID: 28509794] </li>
-   <li> Kim, 2017 (using age,sex,height,weight) (ke unavailable) [PMID: 28509796] </li>
-   <li> Minto, 1997 (using age,sex,height,weight) [PMID: 9009935] </li>
- </ul></li>
- <li>Rocuronium<ul>
-  <li> Wierda, 1991 (using weight) (ke unavailable) [PMID: 1829656] </li>
- </ul></li>
- <li>Vecuronium<ul>
-  <li> Rupp, 1987 (using,weight) (younger [30-57] / older [70-84]) [PMID: 2886080] </li>
- </ul></li>
-</ul>
+
 </div>
 
-<br>
-
-<a href="javascript:appear_disappear('abbreviation');">▼略語▼</a>
-<div id="abbreviation">
-<ul>
-<li>IBW: ideal body weight: (used by Masui)<ul>
- <li>45.4+0.89*(height-152.4)+4.5 for male</li>
- <li>　45.4+0.89*(height-152.4) for female</li>
-</ul></li><li>ABW: adjusted body weight = IBW+0.4*(weight-IBW) (used by Masui)</li>
-<li>LBM: lean body mass: (used by Minto)<ul>
- <li>1.1*weight-128*(weight/height)<sup>2</sup> for male</li>
- <li>1.07*Weight-148*(weight/height)<sup>2</sup> for female</li>
-</ul></li><li>FFM<sub>j</sub>: fat free mass by Janmahasatian: (used by Kim)<ul>
- <li>9270*weight/(6680+216*BMI) for male</li>
- <li>9270*weight/(8780+244*BMI) for female</li>
-</ul></li><li>FFM<sub>AS</sub>: fat free mass by Al Sallami et al.: (used by Eleveld, Morse)<ul>
- <li>(0.88+(1-0.88)/(1+(age/13.4)<sup>-12.7</sup>))*FFM<sub>j</sub> for male</li>
- <li>(1.11+(1-1.11)/(1+(age/7.1)<sup>-1.1</sup>))*FFM<sub>j</sub> for female</li>
-</ul></li></ul>
-</div>
-
-<br>
-
-<h4>バージョン履歴</h4>
-2022/8/16; v1.0.0<br>
-2022/8/30; v1.1.0; モデル追加、単位選択追加など<br>
-2022/9/5; v1.2.0; TCI計算追加など<br>
-2022/9/21; v1.3.0; レイアウト調整、数式表示追加など<br>
-2022/9/26; v1.4.0; JSON入出力追加など<br>
-2022/10/16; v1.5.0; プロポフォール＋オピオイド効果追加など<br>
-2022/11/17; v1.5.1; 説明の英語など<br>
-2022/12/4; v1.5.2; 不具合修正<br>
-</div>
-
-<div id="usage_en">
+<div lang="en">
 
 <h4>Dose registration</h4>
 
@@ -3140,7 +3127,9 @@ The unit can be changed in the right of the Drug Dosing popup.<br>
 
 Rows with the same label name are simulated together.<br>
 Rows with different label names are simulated separately.<br>
+(Label can be editted in the upper right of the Drug Dosing popup.)<br>
 Click the label on the left of each row to switch simulation on/off.<br>
+(Row in off state is indicated by strikethrough and black background color.)<br>
 See the model below for details on the parameters used in the simulation.<br>
 <br>
 TCI (target controlled infusion) units are also available.<br>
@@ -3183,12 +3172,54 @@ Click "↓output concentration↓" to output the concentration with specified ti
 <h4>Other</h4>
 
 <a href="javascript:appear_disappear('model_en');">▼Model▼</a>
-<div id="model_en">
+
+</div>
+
+
+<div id="model">
+
+<div lang="ja">
+<ul>
+ <li>Propofol<ul>
+  <li> Eleveld, 2018 (年齢、性別、身長、体重を使用) [PMID: 29661412] </li>
+  <li> Absalom, 2005 (年齢、体重を使用) (16歳以下のみ) (Peadfusor&reg;) [PMID: 15941735] </li>
+  <li> Marsh, 1991 (体重を使用) および ke=0.26 (ディプリフューザー&reg;）[PMID: 9640110]) </li>
+ </ul></li>
+ <li>Remimazolam<ul>
+  <li> Masui, 2022 (年齢、性別、身長、体重、ASA-PSを使用) [PMID: 35708787] </li>
+  <li> Doi, 2014 (体重を使用) (keデータなし) [日本臨床麻酔科学会誌 Vol.34 No.7 860-866, 2014] </li>
+ </ul></li>
+ <li>Ketamine<ul>
+  <li> Kamp, 2020 (体重を使用) (keデータなし) [PMID: 32997732] </li>
+ </ul></li>
+ <li>Dexmedetomidine<ul>
+  <li> Morse, 2020 (年齢、性別、身長、体重を使用) (keデータなし) [PMID: 33126702] </li>
+   <li> Hannivoort, 2015 (体重を使用) (keデータなし) [PMID: 26068206] </li>
+ </ul></li>
+ <li>Fentanyl<ul>
+  <li> Bae, 2020 (体重を使用) [PMID: 32861508] </li>
+  <li> Shafer, 1990 (体重を使用) [PMID: 2248388] </li>
+ </ul></li>
+ <li>Remifentanil<ul>
+ <li> Elevelt, 2017 (年齢、性別、身長、体重を使用) [PMID: 28509794] </li>
+   <li> Kim, 2017 (年齢、性別、身長、体重を使用) (keデータなし) [PMID: 28509796] </li>
+   <li> Minto, 1997 (年齢、性別、身長、体重を使用) [PMID: 9009935] </li>
+ </ul></li>
+ <li>Rocuronium<ul>
+  <li> Wierda, 1991 (体重を使用) (keデータなし) [PMID: 1829656] </li>
+ </ul></li>
+ <li>Vecuronium<ul>
+  <li> Rupp, 1987 (体重を使用) (youngerは30-57歳、olderは70-84歳のデータ由来) [PMID: 2886080] </li>
+ </ul></li>
+</ul>
+</div>
+
+<div lang="en">
 <ul>
  <li>Propofol<ul>
   <li> Eleveld, 2018 (using age,sex,height,weight) [PMID: 29661412] </li>
-  <li> Absalom, 2005 (using age,weight) (age≦16 only) (Peadfusor) [PMID: 15941735] </li>
-  <li> Marsh, 1991 (using weight) and applying ke=0.26 as in Diprifusor&copy; [PMID: 9640110]) </li>
+  <li> Absalom, 2005 (using age,weight) (age≦16 only) (Peadfusor&reg;) [PMID: 15941735] </li>
+  <li> Marsh, 1991 (using weight) and applying ke=0.26 (Diprifusor&reg;) [PMID: 9640110]) </li>
  </ul></li>
  <li>Remimazolam<ul>
   <li> Masui, 2022 (using age,sex,height,weight,ASA-PS) [PMID: 35708787] </li>
@@ -3214,23 +3245,42 @@ Click "↓output concentration↓" to output the concentration with specified ti
   <li> Wierda, 1991 (using weight) (ke unavailable) [PMID: 1829656] </li>
  </ul></li>
  <li>Vecuronium<ul>
-  <li> Rupp, 1987 (using,weight) (younger [30-57] / older [70-84]) [PMID: 2886080] </li>
+  <li> Rupp, 1987 (using,weight) (younger [30-57 yr] / older [70-84 yr]) [PMID: 2886080] </li>
  </ul></li>
 </ul>
 </div>
 
-<br>
+</div> <!-- id=model -->
 
-<a href="javascript:appear_disappear('abbreviation_en');">▼Abbreviation▼</a>
-<div id="abbreviation_en">
+<div lang="ja"><a href="javascript:appear_disappear('abbreviation');">▼略語▼</a></div>
+<div lang="en"><a href="javascript:appear_disappear('abbreviation');">▼Abbreviation▼</a></div>
+<div id="abbreviation">
+<div lang="ja">
+<ul>
+<li>IBW: 理想体重: (Masuiが使用)<ul>
+ <li>男性：45.4+0.89*(身長-152.4)+4.5</li>
+ <li>女性：45.4+0.89*(身長-152.4)</li>
+</ul></li><li>ABW: 補正体重 = IBW+0.4*(体重-IBW) (Masuiが使用)</li>
+<li>LBM: 徐脂肪体重: (Mintoが使用)<ul>
+ <li>男性：1.1*体重-128*(体重/身長)<sup>2</sup></li>
+ <li>女性：1.07*体重-148*(体重/身長)<sup>2</sup></li>
+</ul></li><li>FFM<sub>j</sub>: Janmahasatianの徐脂肪体重: (Kimが使用)<ul>
+ <li>男性：9270*体重/(6680+216*BMI)</li>
+ <li>女性：9270*体重/(8780+244*BMI)</li>
+</ul></li><li>FFM<sub>AS</sub>: Al Sallamiらの徐脂肪体重: (Eleveld, Morseが使用)<ul>
+ <li>男性：(0.88+(1-0.88)/(1+(年齢/13.4)<sup>-12.7</sup>))*FFM<sub>j</sub></li>
+ <li>女性：(1.11+(1-1.11)/(1+(年齢/7.1)<sup>-1.1</sup>))*FFM<sub>j</sub></li>
+</ul></li></ul>
+</div>
+<div lang="en">
 <ul>
 <li>IBW: ideal body weight: (used by Masui)<ul>
  <li>45.4+0.89*(height-152.4)+4.5 for male</li>
- <li>　45.4+0.89*(height-152.4) for female</li>
+ <li>45.4+0.89*(height-152.4) for female</li>
 </ul></li><li>ABW: adjusted body weight = IBW+0.4*(weight-IBW) (used by Masui)</li>
 <li>LBM: lean body mass: (used by Minto)<ul>
  <li>1.1*weight-128*(weight/height)<sup>2</sup> for male</li>
- <li>1.07*Weight-148*(weight/height)<sup>2</sup> for female</li>
+ <li>1.07*weight-148*(weight/height)<sup>2</sup> for female</li>
 </ul></li><li>FFM<sub>j</sub>: fat free mass by Janmahasatian: (used by Kim)<ul>
  <li>9270*weight/(6680+216*BMI) for male</li>
  <li>9270*weight/(8780+244*BMI) for female</li>
@@ -3240,8 +3290,21 @@ Click "↓output concentration↓" to output the concentration with specified ti
 </ul></li></ul>
 </div>
 
-<br>
+</div><!-- abbreviation -->
 
+<div lang="ja">
+<h4>バージョン履歴</h4>
+2022/8/16; v1.0.0<br>
+2022/8/30; v1.1.0; モデル追加、単位選択追加など<br>
+2022/9/5; v1.2.0; TCI計算追加など<br>
+2022/9/21; v1.3.0; レイアウト調整、数式表示追加など<br>
+2022/9/26; v1.4.0; JSON入出力追加など<br>
+2022/10/16; v1.5.0; プロポフォール＋オピオイド効果追加など<br>
+2022/11/17; v1.5.1; 説明の英語など<br>
+2022/12/4; v1.5.2; 不具合修正<br>
+2022/12/31; v1.5.3; 日本語と英語それぞれ用意<br>
+</div>
+<div lang="en">
 <h4>Version history</h4>
 2022/8/16; v1.0.0<br>
 2022/8/30; v1.1.0; More models, unit choice<br>
@@ -3251,14 +3314,21 @@ Click "↓output concentration↓" to output the concentration with specified ti
 2022/10/16; v1.5.0; Propofol+opioid effect<br>
 2022/11/17; v1.5.1; Language<br>
 2022/12/4; v1.5.2; Fix bug<br>
+2022/12/31; v1.5.3; Separate Japanese and English<br>
+</div>
 
+</div><!-- id=usage -->
+
+<hr>
+
+<div id="selectLang" style="margin-top:5px;">
+ <span class="button_wide" onclick="changeLang('ja')" id="select_ja">日本語</span>
+ <span class="button_wide" onclick="changeLang('en')" id="select_en">English</span>
 </div>
 
 <hr>
 
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
+2022/12/31 v1.5.3<br>
 
-2022/12/4 v1.5.2<br>
-
-</div>
 </body></html>
