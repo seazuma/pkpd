@@ -1993,6 +1993,7 @@ function change_label(input){
 function change_mgmL(input){
  var val = parseFloat(input.value);
  if(isNaN(val))return;
+ Setting.temp_labelinfo.mgmL = val;
  input = Setting.selected_changeunit_span.parentElement.children[0];
  change_unit_val(input);
 }
@@ -2088,7 +2089,7 @@ function dose_done(){
  if(!Setting.is_pop_up){return;} //prevent double action by onkeydown and onsubmit
  if(!Setting.selected_agentunit_span){return;} //no drug chosen
  var old_label = Setting.row.label;
-// var old_mgmL = Setting.row.labelinfo.mgmL 
+// var old_mgmL = Setting.row.labelinfo.mgmL ;
  Setting.temp_label = document.getElementById("PU_3_label").value;
  var val = parseFloat(document.getElementById("PU_3_scale").value);
  if(!isNaN(val)) { Setting.temp_labelinfo.y_scale_50 = val; }
@@ -3321,6 +3322,8 @@ Activate the checkbox to save as a csv file.<br>
 2022/11/17; v1.5.1; 説明の英語など<br>
 2022/12/4; v1.5.2; 不具合修正<br>
 2022/12/31; v1.5.3; 表面的な改善<br>
+2022/1/15; v1.5.4; 不具合修正<br>
+
 </div>
 <div lang="en">
 <h4>Version history</h4>
@@ -3333,6 +3336,7 @@ Activate the checkbox to save as a csv file.<br>
 2022/11/17; v1.5.1; Language<br>
 2022/12/4; v1.5.2; Fix bug<br>
 2022/12/31; v1.5.3; Superficial improvement<br>
+2022/1/15; v1.5.4; Fix bug<br>
 </div>
 
 </div><!-- id=usage -->
