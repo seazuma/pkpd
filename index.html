@@ -659,7 +659,7 @@ var Row = function(){
  dosearea_div.style.height = row_H - 1 + "px";
  dosearea_div.setAttribute("n", this.n);
  if(this.n==0){
-  dosearea_div.innerHTML = '--- <span lang="ja">シミュレーション開始にはここをクリック</span><span lang="en">Click here for simulation</span> ---';
+  dosearea_div.innerHTML = '--- <span lang="ja" n="0">シミュレーション開始にはここをクリック</span><span lang="en" n="0">Click here for simulation</span> ---';
   dosearea_div.style.textAlign = "center";
  }
  setClass(dosearea_div, "dosearea");
@@ -2899,7 +2899,7 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
    <span lang="ja">時刻</span><span lang="en">Time</span>: <input type="tel" id="entry_time" value="">
    <span class="button_wide" onclick="set_time_now();" lang="ja">現在</span>
    <span class="button_wide" onclick="set_time_now();" lang="en">Now</span>
-   <span id="pop_up_overwriting">Overwriting</span>
+   <span id="pop_up_overwriting"><span lang="ja">上書き</span><span lang="en">Overwriting</span></span>
 <br>
    <span class="button" onclick="entry_time_c(-10);">&lt;&lt;</span>
    <span class="button" onclick="entry_time_c(-1);">&lt;</span>
@@ -3323,6 +3323,7 @@ Activate the checkbox to save as a csv file.<br>
 2022/12/4; v1.5.2; 不具合修正<br>
 2022/12/31; v1.5.3; 表面的な改善<br>
 2022/1/15; v1.5.4; 不具合修正<br>
+2023/3/28; v1.5.4; 不具合修正<br>
 
 </div>
 <div lang="en">
@@ -3337,6 +3338,7 @@ Activate the checkbox to save as a csv file.<br>
 2022/12/4; v1.5.2; Fix bug<br>
 2022/12/31; v1.5.3; Superficial improvement<br>
 2022/1/15; v1.5.4; Fix bug<br>
+2022/3/28; v1.5.5; Fix bug<br>
 </div>
 
 </div><!-- id=usage -->
@@ -3351,6 +3353,6 @@ Activate the checkbox to save as a csv file.<br>
 <hr>
 
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
-2022/12/31 v1.5.3<br>
+2023/3/28 v1.5.5<br>
 
 </body></html>
