@@ -5,7 +5,6 @@
 <title>AnesSimulator</title>
 <script>
 var Lang = "ja";
-
 function changeLang(y){
  Lang = y;
  var i, elm_lang, elms = document.getElementsByTagName("div");
@@ -151,6 +150,45 @@ function model_from_eigen(eigen,V1,V123,CL,ke){
  return model_from_k(k10,k12,k13,k21,k31,ke,V1);
 }
 
+// individual variance
+
+function multi_lognormal(e,L) { // e:mean L:cholesky matrix
+  var n = e.length; var i,j;
+  var x = new Array(n);
+  var y = new Array(n);
+  // 奇数次元の場合には、一つの要素については標準正規分布からサンプリングする
+  if (n % 2 === 1) {
+    x[0] = Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
+    for (i = 1; i < n; i += 2) {
+      var r = Math.sqrt(-2 * Math.log(1-Math.random()));
+      var theta = 2 * Math.PI * Math.random();
+      x[i] = r * Math.cos(theta);
+      x[i+1] = r * Math.sin(theta);
+    }
+  } else { // 偶数次元の場合には、2つの要素について同時にサンプリングする
+    for (i = 0; i < n; i += 2) {
+      var r = Math.sqrt(-2 * Math.log(Math.random()));
+      var theta = 2 * Math.PI * Math.random();
+      x[i] = r * Math.cos(theta);
+      x[i+1] = r * Math.sin(theta);
+    }
+  }
+  // 乱数を変換して、平均値と共分散行列に従う多変量正規分布からの乱数を生成する
+  for (i = 0; i < n; i++) {
+    y[i] = e[i];
+    for (j = 0; j < n; j++) {
+      y[i] += L[i][j] * x[j];
+    }
+  }
+  for(i=0;i<n;i++)y[i]=Math.exp(y[i]);
+  return y;
+}
+
+function lognormal(E,CV){
+ var S = E*CV, s = Math.sqrt(Math.log(S*S+1)), m = Math.log(E) - s*s/2;
+ return Math.exp(m+s*rnorm())
+}
+
 var model_P_E2018 = function(patient){ // Eleveld 2018 (ignore terms of maturation, assume presence of opiates)
  var theta = [0,6.28,25.5,273,1.79,1.75,1.11,0.191,42.3,9.06,-0.0156,-0.00286,33.6,-0.0138,68.3,2.10,1.30,1.42,0.68]
  theta_pd = [0,2.91,0.121,92.3,1.44,7.59,0.0499,-0.00917,0.87,1.83],
@@ -166,6 +204,7 @@ var model_P_E2018 = function(patient){ // Eleveld 2018 (ignore terms of maturati
  ke = theta_pd[2] * Math.pow(patient.weight/70,-0.25);
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
 };
+
 var model_P_A2005 = function(patient){ // Absalom,2005, Paedfusor
  if(patient.age > 16){return model_from_VQ(0,0,0,0,0,0,0);} // this model not applicable
  var k10 = 0.1527*Math.pow(patient.weight,-0.3);
@@ -223,7 +262,7 @@ var model_DEX_H2015 = function(patient){ // Hannivoort, 2015
  Q3 = 0.602 * Math.pow(V3/52, 0.75);
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,0);
 };
-var model_F_B2020 = function(patient){ // Bae, 2020 PMID: 32861508
+var model_F_B2020 = function(patient){ // Bae, 2020
  var V1 = 10.1 * Math.pow(patient.weight/70,1.23),
  V2 = 26.5 * Math.pow(patient.weight/70,1.23),
  V3 = 206 * Math.pow(patient.weight/70,1.23),
@@ -233,6 +272,27 @@ var model_F_B2020 = function(patient){ // Bae, 2020 PMID: 32861508
  ke = 0.147;
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
 };
+
+var model_F_B2020_rand = function(patient){
+// log-normal distribution of inter-individual random variability was assumed (Bae, 2020)
+ var e = [ 2.15455974,  3.10460234,  5.27022279, -0.39649572,  0.7091248 , 0.31503616];
+ var L = [[ 0.56209552,  0,  0,  0,  0, 0],
+       [ 0.38128438,  0.4468859 ,  0,  0,  0, 0],
+       [ 0.13190503,  0.10958652,  0.29308466,  0,  0, 0],
+       [ 0.06844231, -0.0362393 , -0.01384428,  0.2912873 ,  0, 0],
+       [ 0.29795635,  0.26713812, -0.07144489,  0.02714873,  0.38725855, 0],
+       [ 0.13190503, -0.23036956, -0.00769307,  0.00729961,  0.29057677, 0.11164016]];
+ var theta = multi_lognormal(e,L);
+ var V1 = theta[0] * Math.pow(patient.weight/70,1.23),
+ V2 = theta[1] * Math.pow(patient.weight/70,1.23),
+ V3 = theta[2] * Math.pow(patient.weight/70,1.23),
+ CL = theta[3] * Math.pow(patient.weight/70, 0.313),
+ Q2 = theta[4] * Math.pow(V2/30.3, 0.313),
+ Q3 = theta[5] * Math.pow(V3/52, 0.313);
+ ke = 0.147;
+ return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
+}
+
 var model_F_S1990 = function(patient){ // Shafer,1990
   return model_from_k(0.083,0.471,0.225,0.102,0.006,0.114,0.105*patient.weight);
 };
@@ -1084,6 +1144,41 @@ Row.prototype.calc_solutions_until = function(t2){
  return solution_arr;
 }
 
+Row.prototype.calc_solutions_until_rand = function(t2, model_rand){
+ var solution_arr = [solution_zero];
+ var current_solution = solution_zero;
+ var current_val = 0;
+ var TCI_model = null;
+ if(this.TCI_model_g) TCI_model = this.TCI_model_g(Current_patient);
+ var is_infusion = UnitInfoList[this.unit].is_infusion;
+ var mg_per_val = UnitInfoList[this.unit].calc_mg_per_val(Current_patient.weight, this.labelinfo.mgmL);
+ var pointer, t_next;
+ var current_model = model_rand;
+ for(pointer = 0; t_next = this.div_arr[pointer]; pointer++){
+  if( t_next >= t2 ){ break; }
+  var C_next = !TCI_model? {Ce:0, C1:0, C2:0, C3:0, infusion:0, total:0}:
+   {Ce:0, C1:0, C2:0, C3:0, infusion:0, total:0, TCI_Ce:0, TCI_C1:0, TCI_C2:0, TCI_C3:0}
+  if(current_solution !== solution_zero){ 
+   C_next = current_solution.calc_at(t_next);
+  }
+  if( this.entry_at[t_next] != undefined ){
+   current_val = this.entry_at[t_next] * mg_per_val;
+   if(!is_infusion){ // bolus mode
+    C_next.C1 += current_val/current_model.V1;
+    C_next.total += current_val;
+    current_val = 0;
+   }
+  }
+  var solution_next = TCI_model?
+   give_solution_TCI(t_next, C_next, current_val, TCI_model, current_model):
+   give_solution(t_next, C_next, current_val, current_model);
+  solution_arr.push(solution_next);
+  current_solution = solution_next;
+ }
+ this.temp_solution_arr = solution_arr;
+ return solution_arr;
+}
+
 LabelInfo.prototype.simulate_t_arr = function(t_arr){// assume t_arr increase monotonicly
  var xi, xN = t_arr.length;
  var ri, rN = this.row_arr.length;
@@ -1211,14 +1306,49 @@ LabelInfo.prototype.simulate = function(showCompart){
  return [C1_arr,Ce_arr];
 }
 
+LabelInfo.prototype.simulate_rand = function(model_rand){
+ var xi, xN = Canvas_common.x_arr.length;
+ var ri, rN = this.row_arr.length;
+ var C1_arr = new Array(xN);
+ var Ce_arr = new Array(xN);
+ var t_model;
+ for(xi=0;xi<xN;xi++){
+  C1_arr[xi] = 0;
+  Ce_arr[xi] = 0;
+ }
+ for(ri=0;ri<rN;ri++){
+  if( this.row_arr[ri].labelarea_div.className == "labelarea_off" ) {continue;}
+  var sol_arr = this.row_arr[ri].calc_solutions_until_rand(Canvas_common.t2, model_rand);
+  var si = sol_arr.length - 1;
+  xi = xN-1;
+  while( xi>=0 ){
+   var sol = sol_arr[si];
+   while( x2t(xi) >= sol.time && xi >= 0){
+    if(sol !== solution_zero){
+     var model = sol.model; 
+     var Ce123it = sol.calc_at(x2t(xi));
+     Ce_arr[xi] += Ce123it.Ce;
+     C1_arr[xi] += Ce123it.C1;
+    }
+    xi--;
+   }
+   si--;
+  }
+ }
+ return [C1_arr,Ce_arr];
+}
+
+
 /* canvas */
 
-var canvas_1, ctx_1;
+var canvas_1, ctx_1; // main
 var canvas_1_cursor, ctx_1_cursor;
-var canvas_2, ctx_2;
+var canvas_2, ctx_2; // compartment
 var canvas_2_cursor, ctx_2_cursor;
-var canvas_3, ctx_3;
+var canvas_3, ctx_3; // propofol+opioid effect
 var canvas_3_cursor, ctx_3_cursor;
+var canvas_4, ctx_4; // individual variance
+var canvas_4_cursor, ctx_4_cursor;
 
 function x2t(x){ return Canvas_common.t1 + (x-O_x)*Canvas_common.t_scale; }
 function t2x(t){
@@ -1239,10 +1369,15 @@ function canvas_resize(){
  canvas_3.height = H;
  canvas_3_cursor.width = W;
  canvas_3_cursor.height = H;
+ canvas_4.width = W;
+ canvas_4.height = H;
+ canvas_4_cursor.width = W;
+ canvas_4_cursor.height = H;
  document.getElementById("row_container").style.top = H + "px";
  document.getElementById("x_scale_setting_1").style.left = W - 100 + "px";
  document.getElementById("x_scale_setting_2").style.left = W - 100 + "px";
  document.getElementById("x_scale_setting_3").style.left = W - 100 + "px";
+ document.getElementById("x_scale_setting_4").style.left = W - 100 + "px";
  var n; for(n=0;n<Row_arr.length;n++){
   Row_arr[n].dosearea_div.style.minWidth = W + "px";
  }
@@ -1259,6 +1394,8 @@ function canvas_ready(){
  canvas_2_cursor = document.getElementById('canvas_2_cursor');
  canvas_3 = document.getElementById('canvas_3'); // effect
  canvas_3_cursor = document.getElementById('canvas_3_cursor');
+ canvas_4 = document.getElementById('canvas_4'); // individual
+ canvas_4_cursor = document.getElementById('canvas_4_cursor');
 
  canvas_1_cursor.ondblclick = function(e){ scale_now(); };
  canvas_1_cursor.ondragstart = function(){ return false; };
@@ -1289,6 +1426,7 @@ function canvas_ready(){
   var y = e.clientY - MouseRect.top;
   canvas3_cross( x,y, false );
  };
+//////
  canvas_1_cursor.onmouseup = function(e) {
   clearTimeout(canvas1_timer);
   if(Canvas_common.is_moving){
@@ -1312,12 +1450,15 @@ function canvas_ready(){
  setEvent(canvas_1_cursor, 'touchend', canvas_1_touchend);
  setEvent(canvas_2_cursor, 'touchmove', canvas_2_touchmove);
  setEvent(canvas_3_cursor, 'touchmove', canvas_3_touchmove);
+// setEvent(canvas_4_cursor, 'touchmove', canvas_4_touchmove);//////
  ctx_1 = canvas_1.getContext('2d');
  ctx_1_cursor = canvas_1_cursor.getContext('2d');
  ctx_2 = canvas_2.getContext('2d');
  ctx_2_cursor = canvas_2_cursor.getContext('2d');
  ctx_3 = canvas_3.getContext('2d');
  ctx_3_cursor = canvas_3_cursor.getContext('2d');
+ ctx_4 = canvas_4.getContext('2d');
+ ctx_4_cursor = canvas_4_cursor.getContext('2d');
  canvas_resize();
 // delete childnodes in case user has downloaded loaded HTML 
  var div = document.getElementById("row_container");
@@ -1360,24 +1501,32 @@ function update_entry_div(){
    var div = Row_arr[ri].div_at[time];
    div.style.left = t2x(time) + "px";
 }}}
+
+var G;
+
 function update_graph(){
  Canvas1CrossFix = false;
  ctx_1.clearRect(0, 0, W, H);
  ctx_2.clearRect(0, 0, W, H);
  ctx_3.clearRect(0, 0, W, H);
+ ctx_4.clearRect(0, 0, W, H);
  ctx_1.fillStyle = cBG;
  ctx_1.fillRect(0, 0, W, H);
  ctx_2.fillStyle = cBG;
  ctx_2.fillRect(0, 0, W, H);
  ctx_3.fillStyle = cBG;
  ctx_3.fillRect(0, 0, W, H);
+ ctx_4.fillStyle = cBG;
+ ctx_4.fillRect(0, 0, W, H);
  draw_axis(ctx_1,Math.pow(2,Canvas_common.y_scale),"ng/mL");
  draw_axis(ctx_2,Math.pow(2,Canvas_common.y_scale),"ng/mL");
  draw_axis(ctx_3,20,"%");
+ draw_axis(ctx_4,Math.pow(2,Canvas_common.y_scale),"ng/mL");
  var count = -1;
  var E_p = [], E_o = [];
  var xi,xN = Canvas_common.x_arr.length;
  for(xi=0;xi<xN;xi++){ E_p.push(0);E_o.push(0); }
+ var indi,indi_M=10, ind_option = 0; // 0:C1 or 1:Ce
  for(label in LabelInfoList){
   count++;
   var labelinfo = LabelInfoList[ label ];
@@ -1413,6 +1562,19 @@ function update_graph(){
   if( labelinfo.agent == "Remifentanil" || labelinfo.agent == "Fentanyl" ){
    for(xi=0;xi<xN;xi++){ E_o[xi] += C1e_arr[1][xi]; }
   }
+  if( labelinfo.agent == "Fentanyl"){
+   for(indi=0;indi<indi_M;indi++){
+    var model_rand = model_F_B2020_rand(Current_patient);
+    var C1e_arr = labelinfo.simulate_rand(model_rand);
+    var y_arr = [];
+    for(xi=0;xi<xN;xi++){
+     y_arr.push( Math.floor(H-O_y-C1e_arr[ind_option][xi]*1000*50/labelinfo.y_scale_50/Math.pow(2,Canvas_common.y_scale)) );
+    }
+    ctx_4.strokeStyle = labelinfo.color;
+    plot_graph(ctx_4, Canvas_common.x_arr, y_arr);
+    var y_label =  label + ": x" + labelinfo.y_scale_50;
+    ctx_4.fillText(y_label, 0, H - O_y - 2 - (count)*18);
+  }}
  }
  var ei;for(ei=0;ei<EffectList.length;ei++){
   var effect = EffectList[ei];
@@ -1490,6 +1652,7 @@ function scale_now(){
  update_x_axis(t1, Canvas_common.t_scale_150);
 }
 // 1m <- 2m <- 5m <- 15m <- 30m <- 1h <- 3h <- 6h <- 12h <- 24h <- 2d <- 4d <- 7d
+
 function scale_short(){
  var t_scale_150 =  Canvas_common.t_scale_150;
  if(t_scale_150 <=1){ t_scale_150 = 1;}
@@ -1502,9 +1665,13 @@ function scale_short(){
  update_x_axis(t1, t_scale_150);
  document.getElementById("x_scale_setting_1").children[1].innerHTML = "-";
  document.getElementById("x_scale_setting_2").children[1].innerHTML = "-";
+ document.getElementById("x_scale_setting_3").children[1].innerHTML = "-";
+ document.getElementById("x_scale_setting_4").children[1].innerHTML = "-";
  if(t_scale_150==1){
   document.getElementById("x_scale_setting_1").children[0].innerHTML = "&nbsp;";
   document.getElementById("x_scale_setting_2").children[0].innerHTML = "&nbsp;";
+  document.getElementById("x_scale_setting_3").children[0].innerHTML = "&nbsp;";
+  document.getElementById("x_scale_setting_4").children[0].innerHTML = "&nbsp;";
 }}
 // 1m -> 2m -> 5m-> 10m -> 30m -> 1h -> 2h -> 4h -> 8h -> 24h -> 2d -> 4d -> 7d
 function scale_long(){
@@ -1519,29 +1686,41 @@ function scale_long(){
  update_x_axis(t1, t_scale_150);
  document.getElementById("x_scale_setting_1").children[0].innerHTML = "+";
  document.getElementById("x_scale_setting_2").children[0].innerHTML = "+";
+ document.getElementById("x_scale_setting_3").children[0].innerHTML = "+";
+ document.getElementById("x_scale_setting_4").children[0].innerHTML = "+";
  if(t_scale_150 == 7*24*60){
   document.getElementById("x_scale_setting_1").children[1].innerHTML = "&nbsp;";
   document.getElementById("x_scale_setting_2").children[1].innerHTML = "&nbsp;";
+  document.getElementById("x_scale_setting_3").children[1].innerHTML = "&nbsp;";
+  document.getElementById("x_scale_setting_4").children[1].innerHTML = "&nbsp;";
 }}
 function scale_prev(){
  if(Canvas_common.t1 < t_MIN/10){
   document.getElementById("x_scale_setting_1").children[3].innerHTML = "&nbsp;";
   document.getElementById("x_scale_setting_2").children[3].innerHTML = "&nbsp;";
+  document.getElementById("x_scale_setting_3").children[3].innerHTML = "&nbsp;";
+  document.getElementById("x_scale_setting_4").children[3].innerHTML = "&nbsp;";
   return;
  }
  update_x_axis(Canvas_common.t1 - Canvas_common.t_scale_150, Canvas_common.t_scale_150);
  document.getElementById("x_scale_setting_1").children[4].innerHTML = "&gt;";
  document.getElementById("x_scale_setting_2").children[4].innerHTML = "&gt;";
+ document.getElementById("x_scale_setting_3").children[4].innerHTML = "&gt;";
+ document.getElementById("x_scale_setting_4").children[4].innerHTML = "&gt;";
 }
 function scale_next(){
  if(Canvas_common.t1 > t_MAX/10){
   document.getElementById("x_scale_setting_1").children[4].innerHTML = "&nbsp;";
   document.getElementById("x_scale_setting_2").children[4].innerHTML = "&nbsp;";
+  document.getElementById("x_scale_setting_3").children[4].innerHTML = "&nbsp;";
+  document.getElementById("x_scale_setting_4").children[4].innerHTML = "&nbsp;";
   return;
  }
  update_x_axis(Canvas_common.t1 + Canvas_common.t_scale_150, Canvas_common.t_scale_150);
  document.getElementById("x_scale_setting_1").children[3].innerHTML = "&lt;";
  document.getElementById("x_scale_setting_2").children[3].innerHTML = "&lt;";
+ document.getElementById("x_scale_setting_3").children[3].innerHTML = "&lt;";
+ document.getElementById("x_scale_setting_4").children[3].innerHTML = "&lt;";
 }
 
 function yscale_short(){
@@ -1593,6 +1772,7 @@ function canvas_3_touchmove(e){
   var y = e.clientY - MouseRect.top;
   canvas3_cross( x,y );
 }};
+////
 function canvas_1_touchend(e){
  if(Canvas_common.is_moving){
   ctx_1_cursor.clearRect(0, 0, W, H);
@@ -1612,6 +1792,7 @@ function delete_cursor(){
  ctx_1_cursor.clearRect(0, 0, W, H);
  ctx_2_cursor.clearRect(0, 0, W, H);
  ctx_3_cursor.clearRect(0, 0, W, H);
+ ctx_4_cursor.clearRect(0, 0, W, H);
  Canvas1CrossFix = false;
 }
 function canvas_vline(x){
@@ -1621,12 +1802,16 @@ function canvas_vline(x){
  ctx_2_cursor.strokeStyle = cCu;
  ctx_3_cursor.lineWidth = 1;
  ctx_3_cursor.strokeStyle = cCu;
+ ctx_4_cursor.lineWidth = 1;
+ ctx_4_cursor.strokeStyle = cCu;
  ctx_1_cursor.clearRect(0, 0, W, H);
  ctx_1_cursor.beginPath(); ctx_1_cursor.moveTo(x, 0); ctx_1_cursor.lineTo(x, H); ctx_1_cursor.stroke();
  ctx_2_cursor.clearRect(0, 0, W, H);
  ctx_2_cursor.beginPath(); ctx_2_cursor.moveTo(x, 0); ctx_2_cursor.lineTo(x, H); ctx_2_cursor.stroke();
  ctx_3_cursor.clearRect(0, 0, W, H);
  ctx_3_cursor.beginPath(); ctx_3_cursor.moveTo(x, 0); ctx_3_cursor.lineTo(x, H); ctx_3_cursor.stroke();
+ ctx_4_cursor.clearRect(0, 0, W, H);
+ ctx_4_cursor.beginPath(); ctx_4_cursor.moveTo(x, 0); ctx_4_cursor.lineTo(x, H); ctx_4_cursor.stroke();
 }
 
 function canvas1_cross( x,y ){
@@ -1721,6 +1906,7 @@ function canvas3_cross( x,y ){
   ctx_3_cursor.textBaseline = "alphabetic";
  }
 }
+////
 
 var Touching_n = -1;
 
@@ -1795,6 +1981,7 @@ function cursor_delete() {
  ctx_1_cursor.clearRect(0, 0, W, H);
  ctx_2_cursor.clearRect(0, 0, W, H);
  ctx_3_cursor.clearRect(0, 0, W, H);
+ ctx_4_cursor.clearRect(0, 0, W, H);
 }
 
 function create_new_row(){
@@ -2288,6 +2475,7 @@ var Compart = {
 function compart_ready(){
  document.getElementById("area2").style.height = H + 50 + "px";
  document.getElementById("area3").style.height = H + 50 + "px";
+ document.getElementById("area4").style.height = H + 50 + "px";
  document.getElementById("comp_2").style.height = H-O_y-Compart.O_y_top + "px";
  document.getElementById("comp_1").style.height = H-O_y-Compart.O_y_top + "px";
  document.getElementById("comp_3").style.height = H-O_y-Compart.O_y_top + "px";
@@ -2621,9 +2809,10 @@ input{
  margin:5px;
  width: 40px;
 }
-#area1, #area2, #area3{ position:relative;}
+#area1, #area2, #area3, #area4{ position:relative;}
 #area2{ margin-top:20px;display:none; }
 #area3{ margin-top:20px;display:none; }
+#area4{ margin-top:20px;display:none; }
 
 #x_scale_setting_1, #x_scale_setting_2, #y_scale_setting_1, #y_scale_setting_2 {
  position:absolute;
@@ -2639,7 +2828,6 @@ input{
 #y_scale_setting_2{
  left:0px;
 }
-
 .form, .form_minor{
  z-index:15;
  display:none;
@@ -3032,12 +3220,20 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
  </form>
 </div>
 
-<div lang="ja">
- <a href="javascript:appear_disappear('area_output_load');">▼出力・読み込み▼</a>
+<div lang="ja"><a href="javascript:appear_disappear('area4');">▼フェンタニル個人差▼</a></div>
+<div lang="en"><a href="javascript:appear_disappear('area4');">▼Fentanyl individual variance▼</a></div>
+
+<div id="area4">
+ <canvas id="canvas_4"></canvas>
+ <canvas id="canvas_4_cursor"></canvas>
+ <form id="x_scale_setting_4">
+  <span class="x_scale_button" onclick="scale_short();">+</span><span class="x_scale_button" onclick="scale_long();">-</span> <br>
+  <span class="x_scale_button" onclick="scale_prev();">&lt;</span><span class="x_scale_button" onclick="scale_next();">&gt;</span>
+ </form>
 </div>
-<div lang="en">
- <a href="javascript:appear_disappear('area_output_load');">▼Output/Load▼</a>
-</div>
+
+<div lang="ja"><a href="javascript:appear_disappear('area_output_load');">▼出力・読み込み▼</a></div>
+<div lang="en"><a href="javascript:appear_disappear('area_output_load');">▼Output/Load▼</a></div>
 
 <div id="area_output_load" style="display:none;">
  <span lang="ja">
@@ -3319,11 +3515,7 @@ Activate the checkbox to save as a csv file.<br>
 2022/9/21; v1.3.0; レイアウト調整、数式表示追加など<br>
 2022/9/26; v1.4.0; JSON入出力追加など<br>
 2022/10/16; v1.5.0; プロポフォール＋オピオイド効果追加など<br>
-2022/11/17; v1.5.1; 説明の英語など<br>
-2022/12/4; v1.5.2; 不具合修正<br>
-2022/12/31; v1.5.3; 表面的な改善<br>
-2022/1/15; v1.5.4; 不具合修正<br>
-2023/3/28; v1.5.4; 不具合修正<br>
+2023/3/31; v1.6.0; フェンタニル個人差<br>
 
 </div>
 <div lang="en">
@@ -3334,11 +3526,7 @@ Activate the checkbox to save as a csv file.<br>
 2022/9/21; v1.3.0; Layout<br>
 2022/9/26; v1.4.0; JSON load/output<br>
 2022/10/16; v1.5.0; Propofol+opioid effect<br>
-2022/11/17; v1.5.1; Language<br>
-2022/12/4; v1.5.2; Fix bug<br>
-2022/12/31; v1.5.3; Superficial improvement<br>
-2022/1/15; v1.5.4; Fix bug<br>
-2022/3/28; v1.5.5; Fix bug<br>
+2023/3/31; v1.6.0; Fentanyl individual variance<br>
 </div>
 
 </div><!-- id=usage -->
@@ -3353,6 +3541,6 @@ Activate the checkbox to save as a csv file.<br>
 <hr>
 
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
-2023/3/28 v1.5.5<br>
+2023/3/31 v1.6.0<br>
 
 </body></html>
