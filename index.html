@@ -589,7 +589,7 @@ Linexp.prototype.addlinexp = function(obj){
 Linexp.prototype.add_term = function(obj){
  var k = obj.k;
  var c = obj.c; // array
- var t = obj.t || this.t;
+ var t = obj.t===undefined? this.t: obj.t;
  var ci;
  if(this.c[k]){
   if(this.t > t){
@@ -1009,7 +1009,7 @@ Model.prototype.simulate = function(infusion,initial){ // Linexp, state
 
 function give_solution(t, initial, infusion_rate, model){
  var infusion = new Linexp([{k:0, c:[infusion_rate], t:t}]);
- return model.simulate(infusion, initial);
+ return G=model.simulate(infusion, initial);
 }
 var Solution = function(obj){
  for(key in obj){
@@ -1115,7 +1115,7 @@ Row.prototype.calc_solutions_until = function(t2){
  var mg_per_val = UnitInfoList[this.unit].calc_mg_per_val(Current_patient.weight, this.labelinfo.mgmL);
  var pointer, t_next;
  var current_model = this.labelinfo.preset_model_g(Current_patient);
- for(pointer = 0; t_next = this.div_arr[pointer]; pointer++){
+ for(pointer = 0; (t_next = this.div_arr[pointer])!==undefined; pointer++){
   if( t_next >= t2 ){ break; }
   var C_next = !TCI_model? {Ce:0, C1:0, C2:0, C3:0, infusion:0, total:0}:
    {Ce:0, C1:0, C2:0, C3:0, infusion:0, total:0, TCI_Ce:0, TCI_C1:0, TCI_C2:0, TCI_C3:0}
@@ -1129,7 +1129,7 @@ Row.prototype.calc_solutions_until = function(t2){
    if(current_model.V3 < new_model.V3){ C_next.C3 *= current_model.V3 / new_model.V3; }
    current_model = new_model;
   }
-  if( this.entry_at[t_next] != undefined ){
+  if( this.entry_at[t_next] !== undefined ){
    current_val = this.entry_at[t_next] * mg_per_val;
    if(!is_infusion){ // bolus mode
     C_next.C1 += current_val/current_model.V1;
@@ -1147,7 +1147,6 @@ Row.prototype.calc_solutions_until = function(t2){
  return solution_arr;
 }
 
-var G;
 Row.prototype.calc_solutions_until_rand = function(t2, model_rand){
  var solution_arr = [solution_zero];
  var current_solution = solution_zero;
@@ -1158,15 +1157,14 @@ Row.prototype.calc_solutions_until_rand = function(t2, model_rand){
  var mg_per_val = UnitInfoList[this.unit].calc_mg_per_val(Current_patient.weight, this.labelinfo.mgmL);
  var pointer, t_next;
  var current_model = model_rand;
-G=current_model;
- for(pointer = 0; t_next = this.div_arr[pointer]; pointer++){
+ for(pointer = 0; (t_next = this.div_arr[pointer])!==undefined; pointer++){
   if( t_next >= t2 ){ break; }
   var C_next = !TCI_model? {Ce:0, C1:0, C2:0, C3:0, infusion:0, total:0}:
    {Ce:0, C1:0, C2:0, C3:0, infusion:0, total:0, TCI_Ce:0, TCI_C1:0, TCI_C2:0, TCI_C3:0}
   if(current_solution !== solution_zero){ 
    C_next = current_solution.calc_at(t_next);
   }
-  if( this.entry_at[t_next] != undefined ){
+  if( this.entry_at[t_next] !== undefined ){
    current_val = this.entry_at[t_next] * mg_per_val;
    if(!is_infusion){ // bolus mode
     C_next.C1 += current_val/current_model.V1;
@@ -2359,7 +2357,7 @@ function set_time_now(){
 function entry_time_c(dt){
  var time =  hm2min(document.getElementById("entry_time").value) + parseInt(dt);
  document.getElementById("pop_up_overwriting").style.display
- = (Setting.row.entry_at[time] == undefined || Setting.edit_div && time == Setting.edit_div.getAttribute("time") ) ? "none" : "inline";
+ = (Setting.row.entry_at[time] === undefined || Setting.edit_div && time == Setting.edit_div.getAttribute("time") ) ? "none" : "inline";
  document.getElementById("entry_time").value = min2hm(time);
 }
 function dose_done(){
@@ -3490,6 +3488,7 @@ Johnson, 2008 [PMID: 18227302] の計算式による反応消失確率などの�
 ・赤＝中心コンパートメント濃度<br>
 ・青＝速い蓄積コンパートメント濃度<br>
 ・緑＝遅い蓄積コンパートメント濃度<br>
+・黄緑の幅は分布および排泄のクリアランスを表現しています。<br>
 
 <h4>フェンタニル個人差</h4>
 Bae, 2020 [PMID: 32861508] のパラメータによる多変量対数正規分布に従ってランダムにサンプルし、個人差を可視化します。<br>
@@ -3560,6 +3559,7 @@ Click the label on the left to choose which label to visualize.<br>
 ・Red : Central compartment concentration<br>
 ・Blue : Fast peripheral compartment concentration<br>
 ・Green : Slow periperal compartment concentration<br>
+・The width of the yellow-green bar represents the distribution and elimination clearance.<br>
 
 <h4>Fentanyl Individual Variance</h4>
 Random sample from multivariate normal distribution with parameters in Bae, 2020 [PMID: 32861508].<br>
