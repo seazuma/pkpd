@@ -2405,7 +2405,7 @@ function dose_done(){
  var time = hm2min( document.getElementById("entry_time").value  );
  var dose = parseFloat(document.getElementById("dose").value);
  var div = Setting.edit_div;
- if(div){ // change data
+ if( div && (Setting.change_model || !isNaN(dose)) ){ // change data
   Setting.row.delete_data(parseInt(Setting.edit_div.getAttribute("time")));
  }
  var changed_model = null;
