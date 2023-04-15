@@ -151,11 +151,8 @@ function model_from_eigen(eigen,V1,V123,CL,ke){
 }
 
 // individual variance
-
-function multi_lognormal(e,L) { // e:mean L:cholesky matrix
-  var n = e.length; var i,j;
-  var x = new Array(n);
-  var y = new Array(n);
+function make_rands(n){
+  var i,x = new Array(n);
   // 奇数次元の場合には、一つの要素については標準正規分布からサンプリングする
   if (n % 2 === 1) {
     x[0] = Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
@@ -173,11 +170,17 @@ function multi_lognormal(e,L) { // e:mean L:cholesky matrix
       x[i+1] = r * Math.sin(theta);
     }
   }
+  return x;
+}
+function multi_lognormal(e,L,rands) { // e:mean L:cholesky matrix
+  if (rands.length<e.length){console.log("error_at_multi_lognormal");return;}
+  var n = e.length; var i,j;
+  var y = new Array(n);
   // 乱数を変換して、平均値と共分散行列に従う多変量正規分布からの乱数を生成する
   for (i = 0; i < n; i++) {
     y[i] = e[i];
     for (j = 0; j < n; j++) {
-      y[i] += L[i][j] * x[j];
+      y[i] += L[i][j] * rands[j];
     }
   }
   for(i=0;i<n;i++)y[i]=Math.exp(y[i]);
@@ -273,7 +276,7 @@ var model_F_B2020 = function(patient){ // Bae, 2020
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
 };
 
-var model_F_B2020_rand = function(patient){
+var model_F_B2020_rand = function(patient,rands){
 // log-normal distribution of inter-individual random variability was assumed (Bae, 2020)
  var e = [ 2.15455974,  3.10460234,  5.27022279, -0.39649572,  0.7091248 , 0.31503616];
  var L = [[ 0.56209552,  0,  0,  0,  0, 0],
@@ -282,7 +285,7 @@ var model_F_B2020_rand = function(patient){
        [ 0.06844231, -0.0362393 , -0.01384428,  0.2912873 ,  0, 0],
        [ 0.29795635,  0.26713812, -0.07144489,  0.02714873,  0.38725855, 0],
        [ 0.13190503, -0.23036956, -0.00769307,  0.00729961,  0.29057677, 0.11164016]];
- var theta = multi_lognormal(e,L);
+ var theta = multi_lognormal(e,L,rands);
  var V1 = theta[0] * Math.pow(patient.weight/70,1.23),
  V2 = theta[1] * Math.pow(patient.weight/70,1.23),
  V3 = theta[2] * Math.pow(patient.weight/70,1.23),
@@ -1144,6 +1147,7 @@ Row.prototype.calc_solutions_until = function(t2){
  return solution_arr;
 }
 
+var G;
 Row.prototype.calc_solutions_until_rand = function(t2, model_rand){
  var solution_arr = [solution_zero];
  var current_solution = solution_zero;
@@ -1154,6 +1158,7 @@ Row.prototype.calc_solutions_until_rand = function(t2, model_rand){
  var mg_per_val = UnitInfoList[this.unit].calc_mg_per_val(Current_patient.weight, this.labelinfo.mgmL);
  var pointer, t_next;
  var current_model = model_rand;
+G=current_model;
  for(pointer = 0; t_next = this.div_arr[pointer]; pointer++){
   if( t_next >= t2 ){ break; }
   var C_next = !TCI_model? {Ce:0, C1:0, C2:0, C3:0, infusion:0, total:0}:
@@ -1306,6 +1311,58 @@ LabelInfo.prototype.simulate = function(showCompart){
  return [C1_arr,Ce_arr];
 }
 
+LabelInfo.prototype.simulate_t_arr_rand = function(t_arr, model_rand){// assume t_arr increase monotonicly
+ var xi, xN = t_arr.length;
+ var ri, rN = this.row_arr.length;
+ var Ce123it = {} 
+ Ce123it["Ce_ng_mL"] = new Array(xN);
+ Ce123it["C1_ng_mL"] = new Array(xN);
+ Ce123it["C2_ng_mL"] = new Array(xN);
+ Ce123it["C3_ng_mL"] = new Array(xN);
+ Ce123it["infusion_mg_h"] = new Array(xN);
+ Ce123it["total_mg"] = new Array(xN);
+ for(xi=0;xi<xN;xi++){
+  Ce123it["Ce_ng_mL"][xi] = 0;
+  Ce123it["C1_ng_mL"][xi] = 0;
+  Ce123it["C2_ng_mL"][xi] = 0;
+  Ce123it["C3_ng_mL"][xi] = 0;
+  Ce123it["infusion_mg_h"][xi] = 0;
+  Ce123it["total_mg"][xi] = 0;
+ }
+ for(ri=0;ri<rN;ri++){
+  if( this.row_arr[ri].labelarea_div.className == "labelarea_off" ) {continue;}
+  var sol_arr = this.row_arr[ri].calc_solutions_until_rand(t_arr[t_arr.length-1], model_rand);
+  var si = sol_arr.length - 1;
+  xi = xN-1;
+  while( xi>=0 ){
+   var sol = sol_arr[si];
+   while( t_arr[xi] >= sol.time && xi >= 0){
+    if(sol !== solution_zero){
+     var model = sol.model; 
+     var Ce123it_new = sol.calc_at( t_arr[xi] );
+     Ce123it["Ce_ng_mL"][xi] += Ce123it_new.Ce * 1000; // mg/L to ng/mL
+     Ce123it["C1_ng_mL"][xi] += Ce123it_new.C1 * 1000; // mg/L to ng/mL
+     Ce123it["C2_ng_mL"][xi] += Ce123it_new.C2 * 1000; // mg/L to ng/mL
+     Ce123it["C3_ng_mL"][xi] += Ce123it_new.C3 * 1000; // mg/L to ng/mL
+     Ce123it["infusion_mg_h"][xi] += Ce123it_new.infusion * 60; // mg/min to mg/h
+     Ce123it["total_mg"][xi] += Ce123it_new.total;
+    }
+    xi--;
+   }
+   si--;
+  }
+ }
+ var key; for(key in Ce123it){
+  for(xi=0;xi<xN;xi++){
+   if(Ce123it[key][xi] != Ce123it[key][xi].toPrecision(4)){
+    Ce123it[key][xi] = Ce123it[key][xi]>Accuracy? Ce123it[key][xi].toPrecision(4): "0";
+   }
+  }
+  Ce123it[key] = Ce123it[key].join(",");
+ }
+ return Ce123it;
+}
+//////
 LabelInfo.prototype.simulate_rand = function(model_rand){
  var xi, xN = Canvas_common.x_arr.length;
  var ri, rN = this.row_arr.length;
@@ -1383,6 +1440,7 @@ function canvas_resize(){
  }
  document.getElementById("output_data_area").style.width = W + "px";
  document.getElementById("output_conc_area").style.width = W + "px";
+ document.getElementById("area4_output_conc_area").style.width = W + "px";
  Canvas_common.ready();
  update_x_axis(Canvas_common.t1, Canvas_common.t_scale_150);
 }
@@ -1493,6 +1551,8 @@ function update_x_axis(t1, t_scale_150){
  update_graph();
  document.getElementById("output_t1").value = min2hm(Canvas_common.t1);
  document.getElementById("output_t2").value = min2hm(Canvas_common.t2);
+ document.getElementById("area4_output_t1").value = min2hm(Canvas_common.t1);
+ document.getElementById("area4_output_t2").value = min2hm(Canvas_common.t2);
 }
 function update_entry_div(){
  var ri, rN = Row_arr.length;
@@ -1502,7 +1562,34 @@ function update_entry_div(){
    div.style.left = t2x(time) + "px";
 }}}
 
-var G;
+var area4_M = 10, area4_alpha = 1, area4_option = 1 ; // 0:C1 or 1:Ce
+
+function set_area4_option(x){
+ area4_option = x;
+ setClass(document.getElementById("area4_option_container").children[x], "button_wide_selected");
+ setClass(document.getElementById("area4_option_container").children[1-x], "button_wide");
+ update_graph();
+}
+
+function update_area4_num(){
+ area4_M=parseInt( document.getElementById("area4_num").value );
+ if(area4_M>10000)area4_M = 10000;
+ if(!area4_M || area4_M<0)area4_M = 0;
+ document.getElementById("area4_num_new").innerHTML = area4_M;
+ update_graph();
+}
+function update_area4_alpha(){
+ area4_alpha=parseFloat( document.getElementById("area4_a").value );
+ if(!area4_M || area4_alpha>1)area4_alpha = 1;
+ if(area4_M<0)area4_M = 0;
+ document.getElementById("area4_a_new").innerHTML = area4_alpha;
+ update_graph();
+}
+function area4_ref(){
+ Fentanyl_rands_list = [];
+ var k;for(k=0;k<area4_M;k++) Fentanyl_rands_list[k] = make_rands(6);
+ update_graph();
+}
 
 function update_graph(){
  Canvas1CrossFix = false;
@@ -1526,7 +1613,7 @@ function update_graph(){
  var E_p = [], E_o = [];
  var xi,xN = Canvas_common.x_arr.length;
  for(xi=0;xi<xN;xi++){ E_p.push(0);E_o.push(0); }
- var indi,indi_M=10, ind_option = 0; // 0:C1 or 1:Ce
+ var k;for(k=Fentanyl_rands_list.length;k<area4_M;k++) Fentanyl_rands_list[k] = make_rands(6);
  for(label in LabelInfoList){
   count++;
   var labelinfo = LabelInfoList[ label ];
@@ -1563,19 +1650,21 @@ function update_graph(){
    for(xi=0;xi<xN;xi++){ E_o[xi] += C1e_arr[1][xi]; }
   }
   if( labelinfo.agent == "Fentanyl"){
-   for(indi=0;indi<indi_M;indi++){
-    var model_rand = model_F_B2020_rand(Current_patient);
+   for(indi=0;indi<area4_M;indi++){
+    var model_rand = model_F_B2020_rand(Current_patient, Fentanyl_rands_list[indi]);
     var C1e_arr = labelinfo.simulate_rand(model_rand);
     var y_arr = [];
     for(xi=0;xi<xN;xi++){
-     y_arr.push( Math.floor(H-O_y-C1e_arr[ind_option][xi]*1000*50/labelinfo.y_scale_50/Math.pow(2,Canvas_common.y_scale)) );
+     y_arr.push( Math.floor(H-O_y-C1e_arr[area4_option][xi]*1000*50/labelinfo.y_scale_50/Math.pow(2,Canvas_common.y_scale)) );
     }
     ctx_4.strokeStyle = labelinfo.color;
+    ctx_4.globalAlpha = area4_alpha;
     plot_graph(ctx_4, Canvas_common.x_arr, y_arr);
     var y_label =  label + ": x" + labelinfo.y_scale_50;
     ctx_4.fillText(y_label, 0, H - O_y - 2 - (count)*18);
   }}
  }
+    ctx_4.globalAlpha=1;
  var ei;for(ei=0;ei<EffectList.length;ei++){
   var effect = EffectList[ei];
   var y_ratio = [];
@@ -1588,6 +1677,7 @@ function update_graph(){
   plot_graph(ctx_3, Canvas_common.x_arr, y_ratio);
  }
 }
+var Fentanyl_rands_list = []
 
 var EffectList=[
  {label_ja:"圧痛計への反応消失", label_en:"Loss of response to pressure algometry", C50p:4.2, C50r:8.8, n:8.3, alpha:8.2, color:"red"},
@@ -2474,8 +2564,8 @@ var Compart = {
 }
 function compart_ready(){
  document.getElementById("area2").style.height = H + 50 + "px";
- document.getElementById("area3").style.height = H + 50 + "px";
- document.getElementById("area4").style.height = H + 50 + "px";
+ document.getElementById("area3").style.height = H + 0 + "px";
+ document.getElementById("area4").style.height = H + 0 + "px";
  document.getElementById("comp_2").style.height = H-O_y-Compart.O_y_top + "px";
  document.getElementById("comp_1").style.height = H-O_y-Compart.O_y_top + "px";
  document.getElementById("comp_3").style.height = H-O_y-Compart.O_y_top + "px";
@@ -2506,7 +2596,7 @@ function compart_ready(){
 function create_compart_label_div(label){
  var div = document.createElement("div");
  div.innerHTML = label;
- div.style.minWidth = "50px"
+ div.style.minWidth = "50px"; ////////
  setClass(div, "button_wide");
  div.setAttribute("onclick", "set_compart(this);update_graph();");
  document.getElementById("compart_label_container").appendChild(div);
@@ -2793,6 +2883,64 @@ function output_conc(){
 }
 /* https://into-the-program.com/javascript-download-csv/ */
 
+function area4_output_conc(){
+ var temp_object = {};
+ var csv_data = [];
+ var t1 = hm2min(document.getElementById("area4_output_t1").value);
+ var t2 = hm2min(document.getElementById("area4_output_t2").value);
+ var disp_dt = parseFloat(document.getElementById("area4_output_dt").value);
+ if(isNaN(t1)){
+  document.getElementById("area4_output_conc_area").value = "Invalid start-time.";
+  return;  
+ }
+ if(isNaN(t2)){
+  document.getElementById("area4_output_conc_area").value = "Invalid end-time.";
+  return;  
+ }
+ if(t1>t2){
+  document.getElementById("area4_output_conc_area").value = "Set end-time later than start-time.";
+  return;   
+ }
+ if(isNaN(disp_dt) || disp_dt<=0){
+  document.getElementById("area4_output_conc_area").value = "Set positive offset.";
+  return;
+ }
+ var dt = disp_dt / parseInt(document.getElementById("area4_output_t_scale").value);
+ var t_unit = document.getElementById("area4_output_t_scale").value=="60"?"sec":"min";
+ var x, t_arr = [], disp_t_arr = [];
+ for(x=0; x<(t2-t1)/dt; x++){
+  var t = t1 + x*dt;
+  var disp_t = x*disp_dt;
+  t_arr.push(t);
+  disp_t_arr.push(disp_t);
+ }
+ temp_object["dt_" + t_unit] = disp_t_arr.join(",");
+ csv_data.push("dt_" + t_unit + "," + disp_t_arr.join(","))
+ for(label in LabelInfoList){
+  var indi,labelinfo = LabelInfoList[label];
+  if(labelinfo.agent == "Fentanyl"){
+   for(indi=0;indi<area4_M;indi++){
+    var model_rand = model_F_B2020_rand(Current_patient, Fentanyl_rands_list[indi]);
+    label_i = label+"_sample_"+indi
+    temp_object[label_i] = labelinfo.simulate_t_arr_rand(t_arr, model_rand);
+    for(key in temp_object[label_i]){
+     csv_data.push(label_i + ":" + key + "," + temp_object[label_i][key]);
+    }
+ }}}
+ document.getElementById("area4_output_conc_area").value = JSON.stringify(temp_object, null, 1).replace(/\"/g, "");
+ if( document.getElementById("area4_output_csv").checked ){
+  var filename = "fentanyl_output.csv";
+  var blob = new Blob([csv_data.join("\n")],{type:"text/csv"});
+  if (window.navigator.msSaveBlob) {
+   window.navigator.msSaveBlob(blob, filename);
+  }
+  var mylink = document.createElement('a');
+  mylink.href = URL.createObjectURL(blob);
+  mylink.download = filename;
+  mylink.click();
+ }
+}
+
 </script>
 <style>
 body{
@@ -2814,7 +2962,8 @@ input{
 #area3{ margin-top:20px;display:none; }
 #area4{ margin-top:20px;display:none; }
 
-#x_scale_setting_1, #x_scale_setting_2, #y_scale_setting_1, #y_scale_setting_2 {
+#x_scale_setting_1, #x_scale_setting_2, #x_scale_setting_3, #x_scale_setting_4,
+ #y_scale_setting_1, #y_scale_setting_2, #y_scale_setting_4 {
  position:absolute;
  border: solid 2px #666666;
  background-color:#dddddd;
@@ -2822,12 +2971,10 @@ input{
  left:650px;
  white-space: nowrap;
 }
-#y_scale_setting_1{
+#y_scale_setting_1, #y_scale_setting_2, #y_scale_setting_4{
  left:0px;
 }
-#y_scale_setting_2{
- left:0px;
-}
+
 .form, .form_minor{
  z-index:15;
  display:none;
@@ -2892,6 +3039,7 @@ span .button_wide_selected{
  padding: 2px;
  border: 3px outset;
  background-color:#cccccc;
+ min-width:50px;
 }
 .button_wide, .button_delete{
  cursor:pointer;
@@ -3020,7 +3168,7 @@ span .button_wide_selected{
  white-space: nowrap;
 }
 
-#compart_label_container{
+#compart_label_container, #area4_option_container{
  position:absolute;
  top:50px;
  z-index:5;
@@ -3183,6 +3331,7 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
   <span class="x_scale_button" onclick="scale_short();">+</span><span class="x_scale_button" onclick="scale_long();">-</span> <br>
   <span class="x_scale_button" onclick="scale_prev();">&lt;</span><span class="x_scale_button" onclick="scale_next();">&gt;</span>
  </form>
+ <hr>
 </div>
 
 <div lang="ja"><a href="javascript:appear_disappear('area2');">▼コンパートメント可視化▼</a></div>
@@ -3218,10 +3367,11 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
  <form id="y_scale_setting_2">
   <span class="y_scale_button" onclick="yscale_short();">+</span><span class="y_scale_button" onclick="yscale_long();">-</span>
  </form>
+ <hr>
 </div>
 
-<div lang="ja"><a href="javascript:appear_disappear('area4');">▼フェンタニル個人差▼</a></div>
-<div lang="en"><a href="javascript:appear_disappear('area4');">▼Fentanyl individual variance▼</a></div>
+<div lang="ja"><a href="javascript:appear_disappear('area4');appear_disappear('area4b')">▼フェンタニル個人差▼</a></div>
+<div lang="en"><a href="javascript:appear_disappear('area4');appear_disappear('area4b')">▼Fentanyl individual variance▼</a></div>
 
 <div id="area4">
  <canvas id="canvas_4"></canvas>
@@ -3230,6 +3380,34 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
   <span class="x_scale_button" onclick="scale_short();">+</span><span class="x_scale_button" onclick="scale_long();">-</span> <br>
   <span class="x_scale_button" onclick="scale_prev();">&lt;</span><span class="x_scale_button" onclick="scale_next();">&gt;</span>
  </form>
+ <form id="y_scale_setting_4">
+  <span class="y_scale_button" onclick="yscale_short();">+</span><span class="y_scale_button" onclick="yscale_long();">-</span>
+ </form>
+ <div id="area4_option_container">
+  <div class="button_wide" onclick="set_area4_option(0)">C1</div>
+  <div class="button_wide_selected" onclick="set_area4_option(1)">Ce</div>
+ </div>
+</div>
+
+<div id="area4b" style="display:none;">
+ <span lang="ja">サンプル数</span>
+ <span lang="en">Sample number</span>
+:<span id="area4_num_new">10</span>←<input id="area4_num" value="10" onfocus="this.select();" onchange="update_area4_num();" onkeydown="if(event.keyCode==13)area4_ref();">,
+ <span lang="ja">透過度</span>
+ <span lang="en">Opacity</span>
+:<span id="area4_a_new">0.5</span>←<input id="area4_a" value="0.5" onfocus="this.select();" onchange="update_area4_alpha();" onkeydown="if(event.keyCode==13)area4_ref();">,
+ <a href="javascript:area4_ref()"><span lang="ja">再サンプル</span lang="ja"><span lang="en">Resample<span lang="en"></a>
+<br>
+ <span lang="ja"><a href="javascript:area4_output_conc();">↓濃度出力↓</a></span>
+ <span lang="en"><a href="javascript:area4_output_conc();">↓output concentration↓</a> from </span>
+ <input type="tel" id="area4_output_t1"> <span lang="ja">から</span><span lang="en">to</span> <input type="tel" id="area4_output_t2">
+ <span lang="ja">、時間間隔</span><span lang="en"> with offset </span>
+ <input type="tel" id="area4_output_dt" value="1"><select id="area4_output_t_scale"><option value="1" selected>min</option><option value="60">sec</option></select>
+ <input type="checkbox" id="area4_output_csv"><span lang="ja">CSVとして保存</span><span lang="en">save as CSV</span>
+<br>
+ <textarea id="area4_output_conc_area" rows="5" wrap="off"></textarea>
+ <div id="area4_csv_link"></div>
+ <hr>
 </div>
 
 <div lang="ja"><a href="javascript:appear_disappear('area_output_load');">▼出力・読み込み▼</a></div>
@@ -3252,7 +3430,7 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
  <input type="tel" id="output_t1"> <span lang="ja">から</span><span lang="en">to</span> <input type="tel" id="output_t2">
  <span lang="ja">、時間間隔</span><span lang="en"> with offset </span>
  <input type="tel" id="output_dt" value="1"><select id="output_t_scale"><option value="1" selected>min</option><option value="60">sec</option></select>
- <input type="checkbox" id="output_csv"><span lang="ja">csvとしてダウンロード</span><span lang="en">save as csv</span>
+ <input type="checkbox" id="output_csv"><span lang="ja">CSVとして保存</span><span lang="en">save as CSV</span>
 <br>
  <textarea id="output_conc_area" rows="5" wrap="off"></textarea>
  <div id="csv_link"></div>
@@ -3313,10 +3491,14 @@ Johnson, 2008 [PMID: 18227302] の計算式による反応消失確率などの�
 ・青＝速い蓄積コンパートメント濃度<br>
 ・緑＝遅い蓄積コンパートメント濃度<br>
 
+<h4>フェンタニル個人差</h4>
+Bae, 2020 [PMID: 32861508] のパラメータによる多変量対数正規分布に従ってランダムにサンプルし、個人差を可視化します。<br>
+左のボタンクリックでC1(血中濃度)かCe(効果部位濃度)を切り替えます。<br>
+
 <h4>出力・読み込み</h4>
+
 「↓出力↓」をクリックすると、登録情報をテキストエリアに出力します。<br>
 これを別のウィンドウや他の端末のこの欄に貼り付ければ「↑読み込み↑」を使って復元できます。<br>
-<br>
 「↓濃度出力↓」をクリックすると、設定した時間刻みでの薬物濃度を出力します。<br>
 チェックボックスを入れることによりcsvとしてダウンロードもできます。<br>
 
@@ -3331,24 +3513,24 @@ Johnson, 2008 [PMID: 18227302] の計算式による反応消失確率などの�
 <h4>Dose registration</h4>
 
 1.Click the yellow bar<br>
-2.Choose agent and type of administration (bolus/infusion)<br>
-3.Edit time if necessary, input dose, and click "OK" button (or press Enter)<br>
- (To cancel, click "cancel" button or press Esc) <br>
-Then, drug concentration will be simulated.<br>
- (See the model in Other section below for details on the parameters used in the simulation.)<br>
+2.Choose agent and type of administration (bolus/infusion).<br>
+3.Edit the time if necessary, input the dose, and click the "OK" button (or press Enter).<br>
+ (To cancel, click "cancel" button or press Esc.) <br>
+Then, the drug concentration will be simulated.<br>
+ (Refer to the model in Other section below for details on the parameters used in the simulation.)<br>
 <br>
-To edit dose, click the corresponding number added in the yellow bar,<br>
+To edit the dose, click the corresponding number added in the yellow bar,<br>
  or click the corresponding row and click "prev" button.<br>
-To stop infusion, input 0 as the dose.<br>
+To stop the infusion, input 0 as the dose.<br>
 <br>
-The unit can be changed by clicking the unit in the right of the Drug Dosing popup.<br>
+The unit can be changed by clicking the unit in the right side of the Drug Dosing popup.<br>
 TCI (target controlled infusion) units are also available.<br>
-Model for TCI and one for evaluation can be chosen separately.<br>
+Model for TCI and evaluation can be chosen separately.<br>
 
 <h4>Graph</h4>
 
 ・Solid line : Central compartment concentration (Plasma concentration) <br>
-・filled area : Effect site concentration<br>
+・Filled area : Effect site concentration<br>
 
 The scale displayed on the left edge indicates the concentration [ng/mL] per tick.<br>
 For example, the default setting for propofol is 1000, so one tick on the vertical axis indicates 1000 ng/mL = 1 µg/mL.<br>
@@ -3356,19 +3538,19 @@ This scale can be changed in the upper right of the Drug Dosing popup.<br>
 <br>
 Rows with the same label name are simulated together.<br>
 Rows with different label names are simulated separately.<br>
-(Label can be editted in the upper right of the Drug Dosing popup.)<br>
+(Labels can be editted in the upper right of the Drug Dosing popup.)<br>
 Click the label on the left of each row to switch simulation on/off.<br>
-(Row in off state is indicated by strikethrough and black background color.)<br>
+(A row in the off state is indicated by strikethrough and black background color.)<br>
 <br>
-Click buttons in upper left to adjust vertical scale.
-Click buttons in upper right to adjust horizontal scale.
-Drag the graph to scroll the time.
-Double-click the graph to jump to current time.
+Click buttons in the upper left to adjust vertical scale.<br>
+Click buttons in the upper right to adjust horizontal scale.<br>
+Drag the graph to scroll through time.<br>
+Double-click the graph to jump to the current time.<br>
 
 <h4>Propofol+opioid effect</h4>
 
 Simulate the possibility of loss of response according to Johnson, 2008 [PMID: 18227302] <br>
-Only propofol and remifentanil are used in the literature,<br>
+In the literature, only propofol and remifentanil are used,<br>
  but here the effect site concentration of fentanyl is added, assuming the same potency as remifentanil.<br>
 <br>
 
@@ -3379,11 +3561,15 @@ Click the label on the left to choose which label to visualize.<br>
 ・Blue : Fast peripheral compartment concentration<br>
 ・Green : Slow periperal compartment concentration<br>
 
+<h4>Fentanyl Individual Variance</h4>
+Random sample from multivariate normal distribution with parameters in Bae, 2020 [PMID: 32861508].<br>
+Click the button on the left to choose C1 (plasma concentration) or Ce (effect site concentration).<br>
+
 <h4>Output/load</h4>
 Click "↓output↓" to output the registered information in the textarea.<br>
 Paste thit and click "↑load↑" to load it, for example in another window or another computer.<br>
-Click "↓output concentration↓" to output the concentration with specified time range.<br>
-Activate the checkbox to save as a csv file.<br>
+Click "↓output concentration↓" to output the concentration within the specified time range.<br>
+Activate the checkbox to save as a CSV file.<br>
 
 <h4>Other</h4>
 
@@ -3516,6 +3702,7 @@ Activate the checkbox to save as a csv file.<br>
 2022/9/26; v1.4.0; JSON入出力追加など<br>
 2022/10/16; v1.5.0; プロポフォール＋オピオイド効果追加など<br>
 2023/3/31; v1.6.0; フェンタニル個人差<br>
+2023/4/16; v1.6.1; 機能追加<br>
 
 </div>
 <div lang="en">
@@ -3527,6 +3714,7 @@ Activate the checkbox to save as a csv file.<br>
 2022/9/26; v1.4.0; JSON load/output<br>
 2022/10/16; v1.5.0; Propofol+opioid effect<br>
 2023/3/31; v1.6.0; Fentanyl individual variance<br>
+2023/4/16; v1.6.1; Add function<br>
 </div>
 
 </div><!-- id=usage -->
@@ -3541,6 +3729,6 @@ Activate the checkbox to save as a csv file.<br>
 <hr>
 
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
-2023/3/31 v1.6.0<br>
+2023/4/16 v1.6.1<br>
 
 </body></html>
