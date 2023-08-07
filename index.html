@@ -929,22 +929,23 @@ Model.prototype.formula_2_2 = function(k){
  var a30 = (k+this.k21)*(this.k13)/pk;
  return [a10,0,a20,0,a30,0];
 }
-Model.prototype.simulate = function(infusion,initial){ // Linexp, state
+Model.prototype.simulate = function(infusion,initial){ // Linexp, state(C1,C2,C3,Ce)
  var t = infusion.t;
  var A1 = new Linexp([{k:0,c:[0],t:t}]);
  var A2 = new Linexp([{k:0,c:[0],t:t}]);
  var A3 = new Linexp([{k:0,c:[0],t:t}]);
 // assume infusion.c[k][ci]=0 for ci>0, this.eigens are distinct
- var b123 = [0,0,0];
+ var b123 = [0,0,0]; // value of A1,A2,A3 at t=0 during calculation
+/* step 2-1, calculate terms for exponential infusion B*exp(k*t) */
  for(K in infusion.c){
   var k = parseFloat(K);
-  if( Math.abs(k) < Accuracy ){ continue; }
+  if( Math.abs(k) < Accuracy ){ continue; } // terms for constant infusion are dealt later
   var B = infusion.c[K][0];
   var aij;
-  if( Math.abs(k-this.eigen[0]) < 2*Accuracy){ aij =  this.formula_2_1(0); } // 2-1-1
-  else if( Math.abs(k-this.eigen[1]) < 2*Accuracy){ aij =  this.formula_2_1(1); } // case 2-1-1
-  else if( Math.abs(k-this.eigen[2]) < 2*Accuracy){ aij =  this.formula_2_1(2); } // case 2-1-1
-  else{ aij =  this.formula_2_2(k); }  // case 2-1-2
+  if( Math.abs(k-this.eigen[0]) < 2*Accuracy){ aij =  this.formula_2_1(0); } // case 2-1-1, k==eigen[0]
+  else if( Math.abs(k-this.eigen[1]) < 2*Accuracy){ aij =  this.formula_2_1(1); } // case 2-1-1, k==eigen[1]
+  else if( Math.abs(k-this.eigen[2]) < 2*Accuracy){ aij =  this.formula_2_1(2); } // case 2-1-1, k==eigen[2]
+  else{ aij =  this.formula_2_2(k); }  // case 2-1-2, k!=e1,e2,e3
   A1.add_term({k:K, c:[B*aij[0],B*aij[1]] });
   A2.add_term({k:K, c:[B*aij[2],B*aij[3]] });
   A3.add_term({k:K, c:[B*aij[4],B*aij[5]] });
@@ -952,45 +953,78 @@ Model.prototype.simulate = function(infusion,initial){ // Linexp, state
   b123[1] += B*aij[2];
   b123[2] += B*aij[4];
  }
-// 2-2
- var equib_A1 = (infusion.c[0] && infusion.c[0][0] || 0) / this.k10;
- var equib_A2 = equib_A1 * this.k12 / this.k21;
- var equib_A3 = equib_A1 * this.k13 / this.k31;
- if( Math.abs(this.k21 - this.k31) < Accuracy){ // 2-2-1
-  var c20=this.k12/(this.eigen[0]+this.k21), c22=this.k12/(this.eigen[2]+this.k21);
-  var c30=this.k13/(this.eigen[0]+this.k31), c32=this.k13/(this.eigen[2]+this.k31);
-  var coeffs = solve3x3(1,0,1,c20,1,c22,c30,-1,c32,
-   -equib_A1+initial.C1*this.V1-b123[0], -equib_A2+initial.C2*this.V2-b123[1], -equib_A3+initial.C3*this.V3-b123[2]);
-  A1.add([ {k:0, c:[equib_A1]}, {k:this.eigen[0], c:[coeffs[0]]}, {k:this.eigen[2], c:[coeffs[2]]} ]);
-  A2.add([ {k:0, c:[equib_A2]}, {k:this.eigen[0], c:[coeffs[0]*c20]}, {k:this.eigen[1], c:[coeffs[1]]}, {k:this.eigen[2], c:[coeffs[2]*c22]} ]);
-  A3.add([ {k:0, c:[equib_A3]}, {k:this.eigen[0], c:[coeffs[0]*c30]}, {k:this.eigen[1], c:[-coeffs[1]]}, {k:this.eigen[2], c:[coeffs[2]*c32]} ]);
- } else{ // 2-2-2
-  var c20=this.k12/(this.eigen[0]+this.k21), c21=this.k12/(this.eigen[1]+this.k21), c22=this.k12/(this.eigen[2]+this.k21);
-  var c30=this.k13/(this.eigen[0]+this.k31), c31=this.k13/(this.eigen[1]+this.k31), c32=this.k13/(this.eigen[2]+this.k31);
-  var coeffs = solve3x3(1,1,1,c20,c21,c22,c30,c31,c32,
-   -equib_A1+initial.C1*this.V1-b123[0], -equib_A2+initial.C2*this.V2-b123[1], -equib_A3+initial.C3*this.V3-b123[2]);
-  A1.add([ {k:0, c:[equib_A1]}, {k:this.eigen[0], c:[coeffs[0]]}, {k:this.eigen[1], c:[coeffs[1]]}, {k:this.eigen[2], c:[coeffs[2]]} ]);
-  A2.add([ {k:0, c:[equib_A2]}, {k:this.eigen[0], c:[coeffs[0]*c20]}, {k:this.eigen[1], c:[coeffs[1]*c21]}, {k:this.eigen[2], c:[coeffs[2]*c22]} ]);
-  A3.add([ {k:0, c:[equib_A3]}, {k:this.eigen[0], c:[coeffs[0]*c30]}, {k:this.eigen[1], c:[coeffs[1]*c31]}, {k:this.eigen[2], c:[coeffs[2]*c32]} ]);
+/* step 2-2, add terms for constant infusion, satisfying the initial condition */
+// var equib_A1=0,equib_A2=0,equib_A3=0,linear_A1=0,linear_A2=0,linear_A3=0;
+ var constant_infusion = infusion.c[0] && infusion.c[0][0] || 0;
+ if( Math.abs(this.k10) < Accuracy){ // no clearance (then, eigen[0]==0)
+  // var initial_total = initial.C1*this.V1 + initial.C2*this.V2 + initial.C3*this.V3;
+  var V123 = this.V1+this.V2+this.V3;
+  var extra2 = constant_infusion*this.V2/this.k21/V123;
+  var extra3 = constant_infusion*this.V3/this.k31/V123;
+  var linear_A1 = constant_infusion * this.V1 / V123;
+  var linear_A2 = constant_infusion * this.V2 / V123;
+  var linear_A3 = constant_infusion * this.V3 / V123;
+  if( Math.abs(this.k21 - this.k31) < Accuracy){ // case 2-2-1, k21==k31 (then, eigen[1]==eigen[2]==-k21)
+   var c20=this.k12/(this.k21), c22=this.k12/(this.eigen[2]+this.k21);
+   var c30=this.k13/(this.k31), c32=this.k13/(this.eigen[2]+this.k31);
+   var coeffs = solve3x3(1,0,1,c20,1,c22,c30,-1,c32,
+    initial.C1*this.V1-b123[0],
+    initial.C2*this.V2-b123[1] + extra2,
+    initial.C3*this.V3-b123[2] + extra3);
+   A1.add([ {k:0, c:[coeffs[0], linear_A1]}, {k:this.eigen[2], c:[coeffs[2]]} ]);
+   A2.add([ {k:0, c:[coeffs[0]*c20 - extra2, linear_A2]}, {k:this.eigen[1], c:[coeffs[1]]}, {k:this.eigen[2], c:[coeffs[2]*c22]} ]);
+   A3.add([ {k:0, c:[coeffs[0]*c30 - extra3, linear_A3]}, {k:this.eigen[1], c:[-coeffs[1]]}, {k:this.eigen[2], c:[coeffs[2]*c32]} ]);
+  } else{ // case 2-2-2, k21!=k31
+   var c20=this.k12/this.k21, c21=this.k12/(this.eigen[1]+this.k21), c22=this.k12/(this.eigen[2]+this.k21);
+   var c30=this.k13/this.k31, c31=this.k13/(this.eigen[1]+this.k31), c32=this.k13/(this.eigen[2]+this.k31);
+   var coeffs = solve3x3(1,1,1,c20,c21,c22,c30,c31,c32,
+    initial.C1*this.V1-b123[0],
+    initial.C2*this.V2-b123[1] + extra2,
+    initial.C3*this.V3-b123[2] + extra3 );
+   A1.add([ {k:0, c:[coeffs[0], linear_A1]}, {k:this.eigen[1], c:[coeffs[1]]}, {k:this.eigen[2], c:[coeffs[2]]} ]);
+   A2.add([ {k:0, c:[coeffs[0]*c20 - extra2, linear_A2]}, {k:this.eigen[1], c:[coeffs[1]*c21]}, {k:this.eigen[2], c:[coeffs[2]*c22]} ]);
+   A3.add([ {k:0, c:[coeffs[0]*c30 - extra3, linear_A3]}, {k:this.eigen[1], c:[coeffs[1]*c31]}, {k:this.eigen[2], c:[coeffs[2]*c32]} ]);
+  }
+ }
+ else{ // with clearance
+  var equib_A1 = constant_infusion / this.k10;
+  var equib_A2 = equib_A1 * this.k12 / this.k21;
+  var equib_A3 = equib_A1 * this.k13 / this.k31;
+  if( Math.abs(this.k21 - this.k31) < Accuracy){ // case 2-2-1, k21==k31 (then, e2==-k21)
+   var c20=this.k12/(this.eigen[0]+this.k21), c22=this.k12/(this.eigen[2]+this.k21);
+   var c30=this.k13/(this.eigen[0]+this.k31), c32=this.k13/(this.eigen[2]+this.k31);
+   var coeffs = solve3x3(1,0,1,c20,1,c22,c30,-1,c32,
+    -equib_A1+initial.C1*this.V1-b123[0], -equib_A2+initial.C2*this.V2-b123[1], -equib_A3+initial.C3*this.V3-b123[2]);
+   A1.add([ {k:0, c:[equib_A1]}, {k:this.eigen[0], c:[coeffs[0]]}, {k:this.eigen[2], c:[coeffs[2]]} ]);
+   A2.add([ {k:0, c:[equib_A2]}, {k:this.eigen[0], c:[coeffs[0]*c20]}, {k:this.eigen[1], c:[coeffs[1]]}, {k:this.eigen[2], c:[coeffs[2]*c22]} ]);
+   A3.add([ {k:0, c:[equib_A3]}, {k:this.eigen[0], c:[coeffs[0]*c30]}, {k:this.eigen[1], c:[-coeffs[1]]}, {k:this.eigen[2], c:[coeffs[2]*c32]} ]);
+  } else{ // case 2-2-2, k21!=k31
+   var c20=this.k12/(this.eigen[0]+this.k21), c21=this.k12/(this.eigen[1]+this.k21), c22=this.k12/(this.eigen[2]+this.k21);
+   var c30=this.k13/(this.eigen[0]+this.k31), c31=this.k13/(this.eigen[1]+this.k31), c32=this.k13/(this.eigen[2]+this.k31);
+   var coeffs = solve3x3(1,1,1,c20,c21,c22,c30,c31,c32,
+    -equib_A1+initial.C1*this.V1-b123[0], -equib_A2+initial.C2*this.V2-b123[1], -equib_A3+initial.C3*this.V3-b123[2]);
+   A1.add([ {k:0, c:[equib_A1]}, {k:this.eigen[0], c:[coeffs[0]]}, {k:this.eigen[1], c:[coeffs[1]]}, {k:this.eigen[2], c:[coeffs[2]]} ]);
+   A2.add([ {k:0, c:[equib_A2]}, {k:this.eigen[0], c:[coeffs[0]*c20]}, {k:this.eigen[1], c:[coeffs[1]*c21]}, {k:this.eigen[2], c:[coeffs[2]*c22]} ]);
+   A3.add([ {k:0, c:[equib_A3]}, {k:this.eigen[0], c:[coeffs[0]*c30]}, {k:this.eigen[1], c:[coeffs[1]*c31]}, {k:this.eigen[2], c:[coeffs[2]*c32]} ]);
+  }
  }
  var C1 = A1.scaler(1/this.V1);
  var C2 = A2.scaler(1/this.V2);
  var C3 = A3.scaler(1/this.V3);
-// simulate Ce
+/* step 3, simulate Ce */
  var b_e = initial.Ce;
- var Ce = new Linexp([ {k:0, c:[0] /*[equib_A1/this.V1]*/ , t:t} ]); // k=0
-// b_e -= equib_A1/this.V1;
+ var Ce = new Linexp([ {k:0, c:[0], t:t} ]);
  for(K in C1.c){
   var k = parseFloat(K);
   var B = C1.c[K][0], C = C1.c[K][1] || 0;
-  if( Math.abs( k - (-this.ke)) < 2*Accuracy ){ // 3-1-1
+  if( Math.abs( k - (-this.ke)) < 2*Accuracy ){ // case 3-1-1, k==-ke
    var ci,C = [0];
    for(ci=0;ci<C1.c[K].length;ci++){
     C[ci+1] = C1.c[K] * this.ke/(ci+1);
    }
    Ce.add_term({k:K, c:C});
   }
-  else{ // 3-1-2
+  else{ // 3-1-2, k!=-ke, including k==0
    var ci, c=C1.c[K].concat(), C = [];
    for(ci=c.length-1; ci>=0; ci--){
     C[ci] = c[ci] * this.ke / (this.ke + k);
@@ -1000,7 +1034,7 @@ Model.prototype.simulate = function(infusion,initial){ // Linexp, state
    b_e -= C[0];
   }
  }
- Ce.add_term({k:-this.ke, c:[b_e]}); // 3-2
+ Ce.add_term({k:-this.ke, c:[b_e]}); // 3-2, term for satisfying initial condition
  var total = infusion.integrate();
  total.add_term({ k:0, c:[initial.total] });
  var sol = new Solution({time:t, Ce:Ce, C1:C1, C2:C2, C3:C3, infusion:infusion, total:total, model:this});
@@ -1157,12 +1191,21 @@ Row.prototype.calc_solutions_until_rand = function(t2, model_rand){
  var mg_per_val = UnitInfoList[this.unit].calc_mg_per_val(Current_patient.weight, this.labelinfo.mgmL);
  var pointer, t_next;
  var current_model = model_rand;
+ var preset_eigens = this.labelinfo.preset_model_g(Current_patient).eigen.join("");
  for(pointer = 0; (t_next = this.div_arr[pointer])!==undefined; pointer++){
   if( t_next >= t2 ){ break; }
   var C_next = !TCI_model? {Ce:0, C1:0, C2:0, C3:0, infusion:0, total:0}:
    {Ce:0, C1:0, C2:0, C3:0, infusion:0, total:0, TCI_Ce:0, TCI_C1:0, TCI_C2:0, TCI_C3:0}
   if(current_solution !== solution_zero){ 
    C_next = current_solution.calc_at(t_next);
+  }
+  var new_model = this.labelinfo.model_at[t_next];
+  if( new_model ){ // simulate dilution
+   if(new_model.eigen.join("")==preset_eigens){ new_model = model_rand; } //restore individual preset, v1.6.2
+   if(current_model.V1 < new_model.V1){ C_next.C1 *= current_model.V1 / new_model.V1; }
+   if(current_model.V2 < new_model.V2){ C_next.C2 *= current_model.V2 / new_model.V2; }
+   if(current_model.V3 < new_model.V3){ C_next.C3 *= current_model.V3 / new_model.V3; }
+   current_model = new_model;
   }
   if( this.entry_at[t_next] !== undefined ){
    current_val = this.entry_at[t_next] * mg_per_val;
@@ -1648,6 +1691,7 @@ function update_graph(){
    for(xi=0;xi<xN;xi++){ E_o[xi] += C1e_arr[1][xi]; }
   }
   if( labelinfo.agent == "Fentanyl"){
+   var indi; // index for individual variance
    for(indi=0;indi<area4_M;indi++){
     var model_rand = model_F_B2020_rand(Current_patient, Fentanyl_rands_list[indi]);
     var C1e_arr = labelinfo.simulate_rand(model_rand);
@@ -1728,8 +1772,10 @@ function fill_graph(ctx, x_arr, y_arr){ // set ctx_1.fillStyle before this
  var i;
  for(i=0; i<x_arr.length; i++){
   ctx.lineTo(x_arr[i], y_arr[i]);
+  if(isNaN(y_arr[i]))break; // v1.6.2
  }
- ctx.lineTo(x_arr[x_arr.length-1], H-O_y);
+ // ctx.lineTo(x_arr[x_arr.length-1], H-O_y);
+ ctx.lineTo(x_arr[i-1], H-O_y); //v1.6.2
  ctx.closePath();
  ctx.fill();
  ctx.globalAlpha = 1;
@@ -2361,8 +2407,8 @@ function entry_time_c(dt){
  document.getElementById("entry_time").value = min2hm(time);
 }
 function dose_done(){
- if(!Setting.is_pop_up){return;} //prevent double action by onkeydown and onsubmit
- if(!Setting.selected_agentunit_span){return;} //no drug chosen
+ if(!Setting.is_pop_up){return;} // prevent double action by onkeydown and onsubmit
+ if(!Setting.selected_agentunit_span){return;} // no drug chosen
  var old_label = Setting.row.label;
 // var old_mgmL = Setting.row.labelinfo.mgmL ;
  Setting.temp_label = document.getElementById("PU_3_label").value;
@@ -3185,7 +3231,7 @@ span .button_wide_selected{
  display:none;
 }
 
-#usage, #model, #abbreviation, #model_en, #abbreviation_en { display:none; }
+#usage, #model, #abbreviation, #manual_param { display:none; }
 
 </style>
 </head>
@@ -3515,8 +3561,8 @@ Bae, 2020 [PMID: 32861508] のパラメータによる多変量対数正規分�
 2.Choose agent and type of administration (bolus/infusion).<br>
 3.Edit the time if necessary, input the dose, and click the "OK" button (or press Enter).<br>
  (To cancel, click "cancel" button or press Esc.) <br>
-Then, the drug concentration will be simulated.<br>
- (Refer to the model in Other section below for details on the parameters used in the simulation.)<br>
+Then, the drug concentration is simulated.<br>
+ (Refer to the model in "Other" section below for details on the parameters used in the simulation.)<br>
 <br>
 To edit the dose, click the corresponding number added in the yellow bar,<br>
  or click the corresponding row and click "prev" button.<br>
@@ -3693,6 +3739,30 @@ Activate the checkbox to save as a CSV file.<br>
 
 </div><!-- abbreviation -->
 
+<div lang="ja"><a href="javascript:appear_disappear('manual_param');">▼手動パラメータ編集▼</a></div>
+<div lang="en"><a href="javascript:appear_disappear('manual_param');">▼Manually editting parameter▼</a></div>
+<div id="manual_param">
+<div lang="ja">
+投与量入力画面中央下で、パラメータを手動編集できます。<br>
+単位はV1,V2,V3が[L]でCL,Q2,Q3が[L/min]です。<br>
+入力画面に設定されている時刻でパラメータが切り替わる計算です。<br>
+分布容積が増える場合は総量を保ちます（濃度は下がります）。<br>
+分布容積が減る場合は濃度を保ちます（総量は減ります）。<br>
+パラメータは正の数の想定ですが、CLのみ0でシミュレーションできます。<br>
+パラメータを編集すると投与量（投与が無ければ「c」）を赤字で表示します。<br>
+</div>
+<div lang="en">
+Manually edit parameters in the lower middle of the Drug Dosing popup.<br>
+The units are [L] for V1,V2,V3 and [L/min] for CL,Q2,Q3.<br>
+The amount is preserved if the volume increases (the concentration decreases).<br>
+The concentration is preserved if the volume decreases (the amount decreases).<br>
+Parameters are assumed to be positive, except that CL may be 0.<br>
+The dose ("c" if there is no dose) is displayed in red when parameters are editted.<br>
+</div>
+
+</div><!-- abbreviation -->
+
+
 <div lang="ja">
 <h4>バージョン履歴</h4>
 2022/8/16; v1.0.0<br>
@@ -3703,6 +3773,7 @@ Activate the checkbox to save as a CSV file.<br>
 2022/10/16; v1.5.0; プロポフォール＋オピオイド効果追加など<br>
 2023/3/31; v1.6.0; フェンタニル個人差<br>
 2023/4/16; v1.6.1; 機能追加<br>
+2023/8/8; v1.6.2; 説明末尾に手動パラメータ編集を追加、不具合修正<br>
 
 </div>
 <div lang="en">
@@ -3715,6 +3786,7 @@ Activate the checkbox to save as a CSV file.<br>
 2022/10/16; v1.5.0; Propofol+opioid effect<br>
 2023/3/31; v1.6.0; Fentanyl individual variance<br>
 2023/4/16; v1.6.1; Add function<br>
+2023/8/8; v1.6.2; Add usage about manually editting parameter, fix bug<br>
 </div>
 
 </div><!-- id=usage -->
@@ -3729,6 +3801,6 @@ Activate the checkbox to save as a CSV file.<br>
 <hr>
 
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
-2023/4/16 v1.6.1<br>
+2023/4/16 v1.6.2<br>
 
 </body></html>
