@@ -1190,8 +1190,8 @@ Row.prototype.calc_solutions_until_rand = function(t2, model_rand){
  var is_infusion = UnitInfoList[this.unit].is_infusion;
  var mg_per_val = UnitInfoList[this.unit].calc_mg_per_val(Current_patient.weight, this.labelinfo.mgmL);
  var pointer, t_next;
+ var preset_model = this.labelinfo.preset_model_g(Current_patient);
  var current_model = model_rand;
- var preset_eigens = this.labelinfo.preset_model_g(Current_patient).eigen.join("");
  for(pointer = 0; (t_next = this.div_arr[pointer])!==undefined; pointer++){
   if( t_next >= t2 ){ break; }
   var C_next = !TCI_model? {Ce:0, C1:0, C2:0, C3:0, infusion:0, total:0}:
@@ -1199,9 +1199,17 @@ Row.prototype.calc_solutions_until_rand = function(t2, model_rand){
   if(current_solution !== solution_zero){ 
    C_next = current_solution.calc_at(t_next);
   }
-  var new_model = this.labelinfo.model_at[t_next];
-  if( new_model ){ // simulate dilution
-   if(new_model.eigen.join("")==preset_eigens){ new_model = model_rand; } //restore individual preset, v1.6.2
+  var new_model_ref = this.labelinfo.model_at[t_next];
+  if( new_model_ref ){ // simulate dilution
+   var V1 = new_model_ref.V1==preset_model.V1 ? model_rand.V1 : new_model_ref.V1;
+   var V2 = new_model_ref.V2==preset_model.V2 ? model_rand.V2 : new_model_ref.V2;
+   var V3 = new_model_ref.V3==preset_model.V3 ? model_rand.V3 : new_model_ref.V3;
+   var CL = new_model_ref.CL==preset_model.CL ? model_rand.CL : new_model_ref.CL;
+   var Q2 = new_model_ref.Q2==preset_model.Q2 ? model_rand.Q2 : new_model_ref.Q2;
+   var Q3 = new_model_ref.Q3==preset_model.Q3 ? model_rand.Q3 : new_model_ref.Q3;
+   var ke = new_model_ref.ke==preset_model.ke ? model_rand.ke : new_model_ref.ke;
+ //restore individual model if the parameter equals preset @ v1.6.2
+   new_model = model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke)
    if(current_model.V1 < new_model.V1){ C_next.C1 *= current_model.V1 / new_model.V1; }
    if(current_model.V2 < new_model.V2){ C_next.C2 *= current_model.V2 / new_model.V2; }
    if(current_model.V3 < new_model.V3){ C_next.C3 *= current_model.V3 / new_model.V3; }
