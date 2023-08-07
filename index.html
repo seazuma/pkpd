@@ -2808,6 +2808,7 @@ function load_data(){
   document.getElementById("weight").value = temp_object.patient.weight;
   document.getElementById("high_ASA").value = temp_object.patient.high_ASA?"1":"0";
  }
+ load_patient() //v1.6.2
  update_x_axis(parseInt(temp_object.t1||0), parseInt(temp_object.t_scale||60));
  var ri; for(ri=Row_arr.length-2; ri>=0; ri--){
   delete_row(ri);
