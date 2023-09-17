@@ -270,8 +270,8 @@ var model_F_B2020 = function(patient){ // Bae, 2020
  V2 = 26.5 * Math.pow(patient.weight/70,1.23),
  V3 = 206 * Math.pow(patient.weight/70,1.23),
  CL = 0.704 * Math.pow(patient.weight/70, 0.313),
- Q2 = 2.38 * Math.pow(V2/30.3, 0.313),
- Q3 = 1.49 * Math.pow(V3/52, 0.313);
+ Q2 = 2.38 * Math.pow(patient.weight/70, 0.313),
+ Q3 = 1.49 * Math.pow(patient.weight/70, 0.313);
  ke = 0.147;
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
 };
@@ -2457,6 +2457,10 @@ function dose_done(){
  Setting.row.labelarea_div.style.color = LabelInfoList[Setting.row.label].color;
 /* entry */
  var time = hm2min( document.getElementById("entry_time").value  );
+ if( isNaN(time) ){
+  time = 0;
+  alert(Lang=="jp"?"0:00に登録しました(時刻形式が不正)":"Registered at 0:00 (invalid input)")
+ }
  var dose = parseFloat(document.getElementById("dose").value);
  var div = Setting.edit_div;
  if( div && (Setting.change_model || !isNaN(dose)) ){ // change data
@@ -3780,9 +3784,8 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 2022/9/21; v1.3.0; レイアウト調整、数式表示追加など<br>
 2022/9/26; v1.4.0; JSON入出力追加など<br>
 2022/10/16; v1.5.0; プロポフォール＋オピオイド効果追加など<br>
-2023/3/31; v1.6.0; フェンタニル個人差<br>
-2023/4/16; v1.6.1; 機能追加<br>
-2023/8/8; v1.6.2; 説明末尾に手動パラメータ編集を追加、不具合修正<br>
+2023/3/31; v1.6.0; フェンタニル個人差可視化機能追加<br>
+2023/9/17; v1.7.0 Bae,2020モデルの実装誤りを修正<br>
 
 </div>
 <div lang="en">
@@ -3796,6 +3799,7 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 2023/3/31; v1.6.0; Fentanyl individual variance<br>
 2023/4/16; v1.6.1; Add function<br>
 2023/8/8; v1.6.2; Add usage about manually editting parameter, fix bug<br>
+2023/9/17; v1.7.0; Fix implementation error in the model Bae,2020<br>
 </div>
 
 </div><!-- id=usage -->
@@ -3810,6 +3814,6 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 <hr>
 
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
-2023/8/8 v1.6.2<br>
+2023/9/17 v1.7.0<br>
 
 </body></html>
