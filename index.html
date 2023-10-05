@@ -465,19 +465,6 @@ function hm2min(x){
  var hm = x.split(":");
  return hm.length==2? ( parseInt(hm[0])*60 + parseInt(hm[1]) ): NaN;
 }
-function ready(){ // onload function
- load_patient();
- canvas_ready();
- drug_arr_ready();
- compart_ready();
- W = document.body.clientWidth;
- canvas_resize();
- window.onresize = function(){
-  W = document.body.clientWidth;
-  canvas_resize();
- };
- changeLang(Lang);
-}
 
 /* sorted array */
 // bisection method: https://note.affi-sapo-sv.com/js-insert-into-sorted-array.php
@@ -2998,6 +2985,34 @@ function area4_output_conc(){
  }
 }
 
+function my_keydown(e){
+ if(e.keyCode==13&&Setting.is_pop_up){dose_done();}
+ if(e.keyCode==27){dose_close();}
+}
+
+function my_resize(){
+ W = document.body.clientWidth;
+ canvas_resize();
+ var height = document.getElementsByTagName("html")[0].scrollHeight;
+ window.parent.postMessage(["setHeight", height], "*");
+//https://qiita.com/kiku-nao/items/a503432a52e7b4980fcf
+}
+
+function my_onload(){
+ load_patient();
+ canvas_ready();
+ drug_arr_ready();
+ compart_ready();
+ my_resize();
+ changeLang(Lang);
+// window.onresize = my_resize
+ setEvent(window, "resize", my_resize);
+ setEvent(document.body, "keydown", my_keydown);
+ document.getElementById('age').focus();
+}
+
+setEvent(window, "load", my_onload);
+
 </script>
 <style>
 body{
@@ -3248,7 +3263,7 @@ span .button_wide_selected{
 
 </style>
 </head>
-<body onload="ready();document.getElementById('age').focus();" onkeydown="if(event.keyCode==13&&Setting.is_pop_up){dose_done();}if(event.keyCode==27){dose_close();}">
+<body>
 
 <!-- 13:Enter, 27:Esc -->
 <span lang="ja">年齢</span><span lang="en">Age</span>:<input type="tel" id="age" value="60" onfocus="this.select();" oninput="load_patient();update_graph();">,
