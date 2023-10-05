@@ -440,7 +440,10 @@ function load_patient(){ // eventually check validity
 
 function appear(x){document.getElementById(x).style.display = "block"; }
 function disappear(x){document.getElementById(x).style.display = "none"; }
-function appear_disappear(x){ document.getElementById(x).style.display =  document.getElementById(x).style.display != "block"?"block":"none";}
+function appear_disappear(x){
+ document.getElementById(x).style.display =  document.getElementById(x).style.display != "block"?"block":"none";
+ notify_height();
+}
 function setClass(x,y){ x.setAttribute("class",y);x.setAttribute("className",y); x.className=y;}
 function setEvent(elem,key,func){
  if(elem.addEventListener){ elem.addEventListener(key, func, false); }
@@ -2993,6 +2996,9 @@ function my_keydown(e){
 function my_resize(){
  W = document.body.clientWidth;
  canvas_resize();
+}
+
+function notify_height(){
  var height = document.getElementsByTagName("html")[0].scrollHeight;
  window.parent.postMessage(["setHeight", height], "*");
 //https://qiita.com/kiku-nao/items/a503432a52e7b4980fcf
@@ -3004,6 +3010,7 @@ function my_onload(){
  drug_arr_ready();
  compart_ready();
  my_resize();
+ notify_height();
  changeLang(Lang);
 // window.onresize = my_resize
  setEvent(window, "resize", my_resize);
