@@ -1604,7 +1604,7 @@ function update_entry_div(){
    div.style.left = t2x(time) + "px";
 }}}
 
-var area4_M = 10, area4_alpha = 1, area4_option = 0 ; // 0:C1 or 1:Ce
+var area4_M, area4_alpha, area4_option = 0 ; // 0:C1 or 1:Ce
 
 function set_area4_option(x){
  area4_option = x; /*1:Ce, 0:C1*/
@@ -3065,6 +3065,8 @@ function my_onload(){
  my_resize();
  notify_height();
  changeLang(Lang);
+ update_area4_num();
+ update_area4_alpha();
 // window.onresize = my_resize
  setEvent(window, "resize", my_resize);
  setEvent(document.body, "keydown", my_keydown);
@@ -3524,10 +3526,10 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 <div id="area4b" style="display:none;">
  <span lang="ja">サンプル数</span>
  <span lang="en">Sample number</span>
-:<span id="area4_num_new">10</span>←<input id="area4_num" value="10" onfocus="this.select();" onchange="update_area4_num();" onkeydown="if(event.keyCode==13)area4_ref();">,
+:<span id="area4_num_new">50</span>←<input id="area4_num" value="50" onfocus="this.select();" onchange="update_area4_num();" onkeydown="if(event.keyCode==13)area4_ref();">,
  <span lang="ja">透過度</span>
  <span lang="en">Opacity</span>
-:<span id="area4_a_new">0.5</span>←<input id="area4_a" value="0.5" onfocus="this.select();" onchange="update_area4_alpha();" onkeydown="if(event.keyCode==13)area4_ref();">,
+:<span id="area4_a_new">0.3</span>←<input id="area4_a" value="0.3" onfocus="this.select();" onchange="update_area4_alpha();" onkeydown="if(event.keyCode==13)area4_ref();">,
  <a href="javascript:area4_ref()"><span lang="ja">再サンプル</span lang="ja"><span lang="en">Resample<span lang="en"></a>
 <br>
  <span lang="ja"><a href="javascript:area4_output_conc();">↓濃度出力↓</a></span>
