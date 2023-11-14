@@ -3071,10 +3071,11 @@ function my_onload(){
  setEvent(window, "resize", my_resize);
  setEvent(document.body, "keydown", my_keydown);
  setEvent(window, "beforeunload", function(event){
-  event = event || window.event; 
-  event.preventDefault();
-  event.returnValue = '';
- });
+  if(Row_arr.length>1){
+   event = event || window.event; 
+   event.preventDefault();
+   event.returnValue = '';
+ }});
 /* https://stackoverflow.com/questions/10919790/addeventlistener-not-working-with-onbeforeunload */
  document.getElementById('age').focus();
 }
@@ -3877,7 +3878,7 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 2023/3/31; v1.6.0; フェンタニル個人差可視化機能追加<br>
 2023/9/17; v1.7.0; Bae,2020モデルの実装誤りを修正<br>
 2023/11/5; v1.8.0; フェンタニル個人差グラフに平均±SDを表示、不具合修正<br>
-2023/11/15; v1.8.1; ページを離れる前の警告を追加<br>
+2023/11/15; v1.8.1; データがあるときページを離れる前に警告<br>
 
 </div>
 <div lang="en">
@@ -3891,7 +3892,7 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 2023/3/31; v1.6.0; Fentanyl individual variance<br>
 2023/9/17; v1.7.0; Fix implementation error in the model Bae,2020<br>
 2023/11/5; v1.8.0; Display mean±SD of fentanyl, fix bug<br>
-2023/11/15 v1.8.1; Add beforeunload event<br>
+2023/11/15 v1.8.1; Alert before unload if data exists<br>
 </div>
 
 </div><!-- id=usage -->
