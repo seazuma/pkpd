@@ -395,18 +395,6 @@ function hm2min(x){
  var hm = x.split(":");
  return hm.length==2? ( parseInt(hm[0])*60 + parseInt(hm[1]) ): NaN;
 }
-function ready(){ // onload function
- load_patient();
- canvas_ready();
- drug_arr_ready();
- compart_ready();
- W = document.body.clientWidth;
- canvas_resize();
- window.onresize = function(){
-  W = document.body.clientWidth;
-  canvas_resize();
- };
-}
 
 /* sorted array */
 // bisection method: https://note.affi-sapo-sv.com/js-insert-into-sorted-array.php
@@ -2579,6 +2567,7 @@ var reader;
 function study(){
  reader = new FileReader();
  reader.readAsText(document.getElementById("input_file").files[0], 'UTF-8');
+ drug_arr_ready();
  reader.onload = study2;
 }
 function study2(){
@@ -2681,6 +2670,14 @@ function study2(){
   mylink.click();
  }
 }
+
+function my_onload(){
+ load_patient();
+ canvas_ready();
+ drug_arr_ready();
+ compart_ready();
+}
+setEvent(window, "load", my_onload);
 
 </script>
 <style>
@@ -3109,7 +3106,7 @@ edge://settings/content/automaticDownloads<br>
 
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
 
-2022/11/17 v1.5.1<br>
-
+2024/11/17 本体のv1.5.1を改造して作成<br>
+2024/1/28 不具合修正
 </div>
 </body></html>
