@@ -221,8 +221,8 @@ var model_F_B2020 = function(patient){ // Bae, 2020 PMID: 32861508
  V2 = 26.5 * Math.pow(patient.weight/70,1.23),
  V3 = 206 * Math.pow(patient.weight/70,1.23),
  CL = 0.704 * Math.pow(patient.weight/70, 0.313),
- Q2 = 2.38 * Math.pow(V2/30.3, 0.313),
- Q3 = 1.49 * Math.pow(V3/52, 0.313);
+ Q2 = 2.38 * Math.pow(patient.weight/70, 0.313),
+ Q3 = 1.49 * Math.pow(patient.weight/70, 0.313);
  ke = 0.147;
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
 };
