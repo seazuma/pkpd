@@ -2582,6 +2582,7 @@ function study2(){
    document.getElementById("weight").value = temp_object.patient.weight;
    document.getElementById("high_ASA").value = temp_object.patient.high_ASA?"1":"0";
   }
+  load_patient() //v1.6.2
   if(temp_object.t1 && temp_object.t_scale){
    update_x_axis(parseInt(temp_object.t1), parseInt(temp_object.t_scale));
   }
@@ -3108,5 +3109,6 @@ edge://settings/content/automaticDownloads<br>
 
 2022/11/17 本体のv1.5.1を改造して作成<br>
 2024/1/28 不具合修正
+2024/5/20 不具合修正
 </div>
 </body></html>
