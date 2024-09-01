@@ -23,13 +23,12 @@ var ctx_font = ctx_font_size + "px sans-serif";
 var Compart_color_arr = ["red","blue","green"]; // for canvas2
 var CompLineWidth = 80;
 
-var Date_now = new Date();
 var Canvas_common = {
  is_moving: false,
  y_scale: 0, // 1st line = Math.pow(2,y_scale)
  t_scale_150: 60, // time[min] per 150 px
  t_scale: 0.2, // time[min] per px
- t1: Date_now.getHours()*60, // time at origin
+ t1: new Date().getHours()*60, // time at origin
  dx : 1, // plot_interval [px]
  x_arr: [],
  ready: function(){
@@ -75,19 +74,6 @@ UnitInfoList["mL/kg/h"] = new UnitInfo(true, true, true, 1/60);
 UnitInfoList["ng/mL"] = new UnitInfo(true, false, false, 1/1000);
 UnitInfoList["μg/mL"] = new UnitInfo(true, false, false, 1);
 
-var AgentInfo = function(agent_fullname, bolus_unit, infusion_unit, mgmL, y_scale_50, color){
- this.agent_fullname = agent_fullname;
- this.bolus_unit = bolus_unit;
- this.infusion_unit = infusion_unit;
- this.mgmL = mgmL;
- this.y_scale_50 = y_scale_50; // ng/mL at first horizontal line
- this.color = color;
- this.preset_model_arr = [];
- this.span_bolus = null;
- this.span_infusion = null;
-}
-
-
 var AgentInfo = function(bolus_unit, infusion_unit, mgmL, y_scale_50, color){
  this.bolus_unit = bolus_unit;
  this.infusion_unit = infusion_unit;
@@ -106,8 +92,9 @@ AgentInfoList["Ketamine"] = new AgentInfo("mL","mL/h", 10, 100, "#008000"); //gr
 AgentInfoList["Dexmedetomidine"] = new AgentInfo("mL","μg/kg/h", 0.004, 1, "#008080"); //teal
 AgentInfoList["Fentanyl"] = new AgentInfo("mL","mL/h", 0.05, 1, "#ff0000"); //red
 AgentInfoList["Remifentanil"] =  new AgentInfo("mL","mL/h", 0.1, 1, "#808000"); // olive
-AgentInfoList["Rocuronium"] =  new AgentInfo("mg","mg/h", 10,500, "#800000"); // maroon
-AgentInfoList["Vecuronium"] =  new AgentInfo("mg","mg/h", 1,50, "#ff00ff"); // fuchsia
+AgentInfoList["Rocuronium"] =  new AgentInfo("mg","mg/h", 10, 500, "#800000"); // maroon
+AgentInfoList["Vecuronium"] =  new AgentInfo("mg","mg/h", 1, 50, "#ff00ff"); // fuchsia
+AgentInfoList["Midazolam"] =  new AgentInfo("mg","mg/h", 1, 1000, "#4b0082"); // indigo
 
 /* model */
 
@@ -144,6 +131,43 @@ function model_from_eigen(eigen,V1,V123,CL,ke){
  return model_from_k(k10,k12,k13,k21,k31,ke,V1);
 }
 
+// individual variance
+function make_rands(n){
+  var i,x = new Array(n);
+  // 奇数次元の場合には、一つの要素については標準正規分布からサンプリングする
+  if (n % 2 === 1) {
+    x[0] = Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
+    for (i = 1; i < n; i += 2) {
+      var r = Math.sqrt(-2 * Math.log(1-Math.random()));
+      var theta = 2 * Math.PI * Math.random();
+      x[i] = r * Math.cos(theta);
+      x[i+1] = r * Math.sin(theta);
+    }
+  } else { // 偶数次元の場合には、2つの要素について同時にサンプリングする
+    for (i = 0; i < n; i += 2) {
+      var r = Math.sqrt(-2 * Math.log(Math.random()));
+      var theta = 2 * Math.PI * Math.random();
+      x[i] = r * Math.cos(theta);
+      x[i+1] = r * Math.sin(theta);
+    }
+  }
+  return x;
+}
+function multi_lognormal(e,L,rands) { // e:mean L:cholesky matrix
+  if (rands.length<e.length){console.log("error_at_multi_lognormal");return;}
+  var n = e.length; var i,j;
+  var y = new Array(n);
+  // 乱数を変換して、平均値と共分散行列に従う多変量正規分布からの乱数を生成する
+  for (i = 0; i < n; i++) {
+    y[i] = e[i];
+    for (j = 0; j < n; j++) {
+      y[i] += L[i][j] * rands[j];
+    }
+  }
+  for(i=0;i<n;i++)y[i]=Math.exp(y[i]);
+  return y;
+}
+
 var model_P_E2018 = function(patient){ // Eleveld 2018 (ignore terms of maturation, assume presence of opiates)
  var theta = [0,6.28,25.5,273,1.79,1.75,1.11,0.191,42.3,9.06,-0.0156,-0.00286,33.6,-0.0138,68.3,2.10,1.30,1.42,0.68]
  theta_pd = [0,2.91,0.121,92.3,1.44,7.59,0.0499,-0.00917,0.87,1.83],
@@ -159,6 +183,7 @@ var model_P_E2018 = function(patient){ // Eleveld 2018 (ignore terms of maturati
  ke = theta_pd[2] * Math.pow(patient.weight/70,-0.25);
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
 };
+
 var model_P_A2005 = function(patient){ // Absalom,2005, Paedfusor
  if(patient.age > 16){return model_from_VQ(0,0,0,0,0,0,0);} // this model not applicable
  var k10 = 0.1527*Math.pow(patient.weight,-0.3);
@@ -216,7 +241,7 @@ var model_DEX_H2015 = function(patient){ // Hannivoort, 2015
  Q3 = 0.602 * Math.pow(V3/52, 0.75);
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,0);
 };
-var model_F_B2020 = function(patient){ // Bae, 2020 PMID: 32861508
+var model_F_B2020 = function(patient){ // Bae, 2020
  var V1 = 10.1 * Math.pow(patient.weight/70,1.23),
  V2 = 26.5 * Math.pow(patient.weight/70,1.23),
  V3 = 206 * Math.pow(patient.weight/70,1.23),
@@ -226,6 +251,28 @@ var model_F_B2020 = function(patient){ // Bae, 2020 PMID: 32861508
  ke = 0.147;
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
 };
+
+var model_F_B2020_rand = function(patient,rands){
+/* log-normal distribution of inter-individual random variability was assumed (Bae, 2020) */
+/* see https://colab.research.google.com/drive/1s4PZST-VYZEy2w7ZDkjhsVhg2YNcZWbF */
+ var e = [ 2.12675365,  3.07108991,  5.26676735, -0.39863201,  0.68131871, 0.30761534];
+ var L = [[ 0.60956013,  0.        ,  0.        ,  0.        ,  0.        ,         0.        ],
+       [ 0.39211373,  0.50828778,  0.        ,  0.        ,  0.        ,         0.        ],
+       [ 0.12625668,  0.10791728,  0.3076211 ,  0.        ,  0.        ,         0.        ],
+       [ 0.06434265, -0.03006034, -0.01261343,  0.30017908,  0.        ,         0.        ],
+       [ 0.29910348,  0.28543216, -0.06428919,  0.02773944,  0.44240995,         0.        ],
+       [ 0.12625668, -0.19831339, -0.0149198 ,  0.01842027,  0.25469869,         0.2482323 ]]
+ var theta = multi_lognormal(e,L,rands);
+ var V1 = theta[0] * Math.pow(patient.weight/70,1.23),
+ V2 = theta[1] * Math.pow(patient.weight/70,1.23),
+ V3 = theta[2] * Math.pow(patient.weight/70,1.23),
+ CL = theta[3] * Math.pow(patient.weight/70, 0.313),
+ Q2 = theta[4] * Math.pow(patient.weight/70, 0.313),
+ Q3 = theta[5] * Math.pow(patient.weight/70, 0.313);
+ ke = 0.147;
+ return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
+}
+
 var model_F_S1990 = function(patient){ // Shafer,1990
   return model_from_k(0.083,0.471,0.225,0.102,0.006,0.114,0.105*patient.weight);
 };
@@ -274,6 +321,11 @@ var model_Vb_R1987_o = function(patient){ // Rupp,1987,younger
  return model_from_k(0.0389,0.4368,0.107,0.0787,0.0039, 0.5923 ,0.029*patient.weight);
 }
 
+ /* 2コンパートメントモデルを無理やり3コンパートメントにしている */
+var model_MDZ_V1981 = function(patient){ // Rupp,1987,younger
+ return model_from_k(0.021, 0.048, 0.00001, 0.019, 99999999, 0, 0.4*patient.weight);
+}
+
 AgentInfoList["Propofol"].preset_model_arr = [
  {model_g: model_P_E2018, label: "Eleveld,2018"},
  {model_g: model_P_A2005, label: "Absalom,2005"},
@@ -306,8 +358,11 @@ AgentInfoList["Vecuronium"].preset_model_arr = [
  {model_g: model_Vb_R1987_y, label: "Rupp,1987,younger"},
  {model_g: model_Vb_R1987_o, label: "Rupp,1987,older"}
 ];
+AgentInfoList["Midazolam"].preset_model_arr = [
+ {model_g: model_MDZ_V1981, label: "Lauven,1981"}
+];
 
-Modelname2func = []; // for load_data
+Modelname2func = []; // used in load_data(), ex. Modelname2func["model_P_E2018"](..) = model_P_E2018(..)
 (function(){
  var agent;
  for(agent in AgentInfoList){
@@ -370,7 +425,10 @@ function load_patient(){ // eventually check validity
 
 function appear(x){document.getElementById(x).style.display = "block"; }
 function disappear(x){document.getElementById(x).style.display = "none"; }
-function appear_disappear(x){ document.getElementById(x).style.display =  document.getElementById(x).style.display != "block"?"block":"none";}
+function appear_disappear(x){
+ document.getElementById(x).style.display =  document.getElementById(x).style.display != "block"?"block":"none";
+ notify_height();
+}
 function setClass(x,y){ x.setAttribute("class",y);x.setAttribute("className",y); x.className=y;}
 function setEvent(elem,key,func){
  if(elem.addEventListener){ elem.addEventListener(key, func, false); }
@@ -506,7 +564,7 @@ Linexp.prototype.addlinexp = function(obj){
 Linexp.prototype.add_term = function(obj){
  var k = obj.k;
  var c = obj.c; // array
- var t = obj.t || this.t;
+ var t = obj.t===undefined? this.t: obj.t;
  var ci;
  if(this.c[k]){
   if(this.t > t){
@@ -639,7 +697,7 @@ var Row = function(){
  dosearea_div.style.height = row_H - 1 + "px";
  dosearea_div.setAttribute("n", this.n);
  if(this.n==0){
-  dosearea_div.innerHTML = "--- Click here for simulation ---";
+  dosearea_div.innerHTML = '--- <span lang="ja" n="0">シミュレーション開始にはここをクリック</span><span lang="en" n="0">Click here for simulation</span> ---';
   dosearea_div.style.textAlign = "center";
  }
  setClass(dosearea_div, "dosearea");
@@ -678,7 +736,7 @@ function label_click(e){
  var row = Row_arr[n];
  if(row.labelinfo.preset_model_g == model_P_A2005 || row.TCI_model_g == model_P_A2005 ){
   if( Current_patient.age>16 && row.labelarea_div.className == "labelarea_off" ) {
-   alert("Model only valid for age≦16");return;
+   alert(Lang=="en"?"This model is only valid for age≦16":"このモデルは16歳以下のみ有効です");return;
  }}
  setClass(row.dosearea_div, div.className == "labelarea_off"? "dosearea": "dosearea_off");
  setClass(div, div.className == "labelarea_off"? "labelarea_on": "labelarea_off");
@@ -689,7 +747,7 @@ Row.prototype.register = function(label, unit_span){
  this.label = label;
  this.unit_span = unit_span; // botton in pop_up
  this.unit = unit_span.innerHTML;
- if(this.dosearea_div.innerHTML == "--- Click here for simulation ---"){ this.dosearea_div.innerHTML = ""; }
+ if(this.dosearea_div.innerHTML.substring(0,3) == "---"){ this.dosearea_div.innerHTML = ""; }
  if(!this.labelarea_div){
   var labelarea_div = document.createElement('div');
   setClass(labelarea_div, "labelarea_on");
@@ -707,7 +765,7 @@ Row.prototype.register = function(label, unit_span){
  else{
   this.labelinfo = LabelInfoList[label];
  }
-// if(!Compart.div)set_compart(this.labelinfo.compart_label_div);
+ if(!Compart.div)set_compart(this.labelinfo.compart_label_div);
  this.labelinfo.row_arr.push(this);
 }
 LabelInfo.prototype.delete_rowdata = function(row){
@@ -846,22 +904,23 @@ Model.prototype.formula_2_2 = function(k){
  var a30 = (k+this.k21)*(this.k13)/pk;
  return [a10,0,a20,0,a30,0];
 }
-Model.prototype.simulate = function(infusion,initial){ // Linexp, state
+Model.prototype.simulate = function(infusion,initial){ // Linexp, state(C1,C2,C3,Ce)
  var t = infusion.t;
  var A1 = new Linexp([{k:0,c:[0],t:t}]);
  var A2 = new Linexp([{k:0,c:[0],t:t}]);
  var A3 = new Linexp([{k:0,c:[0],t:t}]);
 // assume infusion.c[k][ci]=0 for ci>0, this.eigens are distinct
- var b123 = [0,0,0];
+ var b123 = [0,0,0]; // value of A1,A2,A3 at t=0 during calculation
+/* step 2-1, calculate terms for exponential infusion B*exp(k*t) */
  for(K in infusion.c){
   var k = parseFloat(K);
-  if( Math.abs(k) < Accuracy ){ continue; }
+  if( Math.abs(k) < Accuracy ){ continue; } // terms for constant infusion are dealt later
   var B = infusion.c[K][0];
   var aij;
-  if( Math.abs(k-this.eigen[0]) < 2*Accuracy){ aij =  this.formula_2_1(0); } // 2-1-1
-  else if( Math.abs(k-this.eigen[1]) < 2*Accuracy){ aij =  this.formula_2_1(1); } // case 2-1-1
-  else if( Math.abs(k-this.eigen[2]) < 2*Accuracy){ aij =  this.formula_2_1(2); } // case 2-1-1
-  else{ aij =  this.formula_2_2(k); }  // case 2-1-2
+  if( Math.abs(k-this.eigen[0]) < 2*Accuracy){ aij =  this.formula_2_1(0); } // case 2-1-1, k==eigen[0]
+  else if( Math.abs(k-this.eigen[1]) < 2*Accuracy){ aij =  this.formula_2_1(1); } // case 2-1-1, k==eigen[1]
+  else if( Math.abs(k-this.eigen[2]) < 2*Accuracy){ aij =  this.formula_2_1(2); } // case 2-1-1, k==eigen[2]
+  else{ aij =  this.formula_2_2(k); }  // case 2-1-2, k!=e1,e2,e3
   A1.add_term({k:K, c:[B*aij[0],B*aij[1]] });
   A2.add_term({k:K, c:[B*aij[2],B*aij[3]] });
   A3.add_term({k:K, c:[B*aij[4],B*aij[5]] });
@@ -869,45 +928,78 @@ Model.prototype.simulate = function(infusion,initial){ // Linexp, state
   b123[1] += B*aij[2];
   b123[2] += B*aij[4];
  }
-// 2-2
- var equib_A1 = (infusion.c[0] && infusion.c[0][0] || 0) / this.k10;
- var equib_A2 = equib_A1 * this.k12 / this.k21;
- var equib_A3 = equib_A1 * this.k13 / this.k31;
- if( Math.abs(this.k21 - this.k31) < Accuracy){ // 2-2-1
-  var c20=this.k12/(this.eigen[0]+this.k21), c22=this.k12/(this.eigen[2]+this.k21);
-  var c30=this.k13/(this.eigen[0]+this.k31), c32=this.k13/(this.eigen[2]+this.k31);
-  var coeffs = solve3x3(1,0,1,c20,1,c22,c30,-1,c32,
-   -equib_A1+initial.C1*this.V1-b123[0], -equib_A2+initial.C2*this.V2-b123[1], -equib_A3+initial.C3*this.V3-b123[2]);
-  A1.add([ {k:0, c:[equib_A1]}, {k:this.eigen[0], c:[coeffs[0]]}, {k:this.eigen[2], c:[coeffs[2]]} ]);
-  A2.add([ {k:0, c:[equib_A2]}, {k:this.eigen[0], c:[coeffs[0]*c20]}, {k:this.eigen[1], c:[coeffs[1]]}, {k:this.eigen[2], c:[coeffs[2]*c22]} ]);
-  A3.add([ {k:0, c:[equib_A3]}, {k:this.eigen[0], c:[coeffs[0]*c30]}, {k:this.eigen[1], c:[-coeffs[1]]}, {k:this.eigen[2], c:[coeffs[2]*c32]} ]);
- } else{ // 2-2-2
-  var c20=this.k12/(this.eigen[0]+this.k21), c21=this.k12/(this.eigen[1]+this.k21), c22=this.k12/(this.eigen[2]+this.k21);
-  var c30=this.k13/(this.eigen[0]+this.k31), c31=this.k13/(this.eigen[1]+this.k31), c32=this.k13/(this.eigen[2]+this.k31);
-  var coeffs = solve3x3(1,1,1,c20,c21,c22,c30,c31,c32,
-   -equib_A1+initial.C1*this.V1-b123[0], -equib_A2+initial.C2*this.V2-b123[1], -equib_A3+initial.C3*this.V3-b123[2]);
-  A1.add([ {k:0, c:[equib_A1]}, {k:this.eigen[0], c:[coeffs[0]]}, {k:this.eigen[1], c:[coeffs[1]]}, {k:this.eigen[2], c:[coeffs[2]]} ]);
-  A2.add([ {k:0, c:[equib_A2]}, {k:this.eigen[0], c:[coeffs[0]*c20]}, {k:this.eigen[1], c:[coeffs[1]*c21]}, {k:this.eigen[2], c:[coeffs[2]*c22]} ]);
-  A3.add([ {k:0, c:[equib_A3]}, {k:this.eigen[0], c:[coeffs[0]*c30]}, {k:this.eigen[1], c:[coeffs[1]*c31]}, {k:this.eigen[2], c:[coeffs[2]*c32]} ]);
+/* step 2-2, add terms for constant infusion, satisfying the initial condition */
+// var equib_A1=0,equib_A2=0,equib_A3=0,linear_A1=0,linear_A2=0,linear_A3=0;
+ var constant_infusion = infusion.c[0] && infusion.c[0][0] || 0;
+ if( Math.abs(this.k10) < Accuracy){ // no clearance (then, eigen[0]==0)
+  // var initial_total = initial.C1*this.V1 + initial.C2*this.V2 + initial.C3*this.V3;
+  var V123 = this.V1+this.V2+this.V3;
+  var extra2 = constant_infusion*this.V2/this.k21/V123;
+  var extra3 = constant_infusion*this.V3/this.k31/V123;
+  var linear_A1 = constant_infusion * this.V1 / V123;
+  var linear_A2 = constant_infusion * this.V2 / V123;
+  var linear_A3 = constant_infusion * this.V3 / V123;
+  if( Math.abs(this.k21 - this.k31) < Accuracy){ // case 2-2-1, k21==k31 (then, eigen[1]==eigen[2]==-k21)
+   var c20=this.k12/(this.k21), c22=this.k12/(this.eigen[2]+this.k21);
+   var c30=this.k13/(this.k31), c32=this.k13/(this.eigen[2]+this.k31);
+   var coeffs = solve3x3(1,0,1,c20,1,c22,c30,-1,c32,
+    initial.C1*this.V1-b123[0],
+    initial.C2*this.V2-b123[1] + extra2,
+    initial.C3*this.V3-b123[2] + extra3);
+   A1.add([ {k:0, c:[coeffs[0], linear_A1]}, {k:this.eigen[2], c:[coeffs[2]]} ]);
+   A2.add([ {k:0, c:[coeffs[0]*c20 - extra2, linear_A2]}, {k:this.eigen[1], c:[coeffs[1]]}, {k:this.eigen[2], c:[coeffs[2]*c22]} ]);
+   A3.add([ {k:0, c:[coeffs[0]*c30 - extra3, linear_A3]}, {k:this.eigen[1], c:[-coeffs[1]]}, {k:this.eigen[2], c:[coeffs[2]*c32]} ]);
+  } else{ // case 2-2-2, k21!=k31
+   var c20=this.k12/this.k21, c21=this.k12/(this.eigen[1]+this.k21), c22=this.k12/(this.eigen[2]+this.k21);
+   var c30=this.k13/this.k31, c31=this.k13/(this.eigen[1]+this.k31), c32=this.k13/(this.eigen[2]+this.k31);
+   var coeffs = solve3x3(1,1,1,c20,c21,c22,c30,c31,c32,
+    initial.C1*this.V1-b123[0],
+    initial.C2*this.V2-b123[1] + extra2,
+    initial.C3*this.V3-b123[2] + extra3 );
+   A1.add([ {k:0, c:[coeffs[0], linear_A1]}, {k:this.eigen[1], c:[coeffs[1]]}, {k:this.eigen[2], c:[coeffs[2]]} ]);
+   A2.add([ {k:0, c:[coeffs[0]*c20 - extra2, linear_A2]}, {k:this.eigen[1], c:[coeffs[1]*c21]}, {k:this.eigen[2], c:[coeffs[2]*c22]} ]);
+   A3.add([ {k:0, c:[coeffs[0]*c30 - extra3, linear_A3]}, {k:this.eigen[1], c:[coeffs[1]*c31]}, {k:this.eigen[2], c:[coeffs[2]*c32]} ]);
+  }
+ }
+ else{ // with clearance
+  var equib_A1 = constant_infusion / this.k10;
+  var equib_A2 = equib_A1 * this.k12 / this.k21;
+  var equib_A3 = equib_A1 * this.k13 / this.k31;
+  if( Math.abs(this.k21 - this.k31) < Accuracy){ // case 2-2-1, k21==k31 (then, e2==-k21)
+   var c20=this.k12/(this.eigen[0]+this.k21), c22=this.k12/(this.eigen[2]+this.k21);
+   var c30=this.k13/(this.eigen[0]+this.k31), c32=this.k13/(this.eigen[2]+this.k31);
+   var coeffs = solve3x3(1,0,1,c20,1,c22,c30,-1,c32,
+    -equib_A1+initial.C1*this.V1-b123[0], -equib_A2+initial.C2*this.V2-b123[1], -equib_A3+initial.C3*this.V3-b123[2]);
+   A1.add([ {k:0, c:[equib_A1]}, {k:this.eigen[0], c:[coeffs[0]]}, {k:this.eigen[2], c:[coeffs[2]]} ]);
+   A2.add([ {k:0, c:[equib_A2]}, {k:this.eigen[0], c:[coeffs[0]*c20]}, {k:this.eigen[1], c:[coeffs[1]]}, {k:this.eigen[2], c:[coeffs[2]*c22]} ]);
+   A3.add([ {k:0, c:[equib_A3]}, {k:this.eigen[0], c:[coeffs[0]*c30]}, {k:this.eigen[1], c:[-coeffs[1]]}, {k:this.eigen[2], c:[coeffs[2]*c32]} ]);
+  } else{ // case 2-2-2, k21!=k31
+   var c20=this.k12/(this.eigen[0]+this.k21), c21=this.k12/(this.eigen[1]+this.k21), c22=this.k12/(this.eigen[2]+this.k21);
+   var c30=this.k13/(this.eigen[0]+this.k31), c31=this.k13/(this.eigen[1]+this.k31), c32=this.k13/(this.eigen[2]+this.k31);
+   var coeffs = solve3x3(1,1,1,c20,c21,c22,c30,c31,c32,
+    -equib_A1+initial.C1*this.V1-b123[0], -equib_A2+initial.C2*this.V2-b123[1], -equib_A3+initial.C3*this.V3-b123[2]);
+   A1.add([ {k:0, c:[equib_A1]}, {k:this.eigen[0], c:[coeffs[0]]}, {k:this.eigen[1], c:[coeffs[1]]}, {k:this.eigen[2], c:[coeffs[2]]} ]);
+   A2.add([ {k:0, c:[equib_A2]}, {k:this.eigen[0], c:[coeffs[0]*c20]}, {k:this.eigen[1], c:[coeffs[1]*c21]}, {k:this.eigen[2], c:[coeffs[2]*c22]} ]);
+   A3.add([ {k:0, c:[equib_A3]}, {k:this.eigen[0], c:[coeffs[0]*c30]}, {k:this.eigen[1], c:[coeffs[1]*c31]}, {k:this.eigen[2], c:[coeffs[2]*c32]} ]);
+  }
  }
  var C1 = A1.scaler(1/this.V1);
  var C2 = A2.scaler(1/this.V2);
  var C3 = A3.scaler(1/this.V3);
-// simulate Ce
+/* step 3, simulate Ce */
  var b_e = initial.Ce;
- var Ce = new Linexp([ {k:0, c:[0] /*[equib_A1/this.V1]*/ , t:t} ]); // k=0
-// b_e -= equib_A1/this.V1;
+ var Ce = new Linexp([ {k:0, c:[0], t:t} ]);
  for(K in C1.c){
   var k = parseFloat(K);
   var B = C1.c[K][0], C = C1.c[K][1] || 0;
-  if( Math.abs( k - (-this.ke)) < 2*Accuracy ){ // 3-1-1
+  if( Math.abs( k - (-this.ke)) < 2*Accuracy ){ // case 3-1-1, k==-ke
    var ci,C = [0];
    for(ci=0;ci<C1.c[K].length;ci++){
     C[ci+1] = C1.c[K] * this.ke/(ci+1);
    }
    Ce.add_term({k:K, c:C});
   }
-  else{ // 3-1-2
+  else{ // 3-1-2, k!=-ke, including k==0
    var ci, c=C1.c[K].concat(), C = [];
    for(ci=c.length-1; ci>=0; ci--){
     C[ci] = c[ci] * this.ke / (this.ke + k);
@@ -917,7 +1009,7 @@ Model.prototype.simulate = function(infusion,initial){ // Linexp, state
    b_e -= C[0];
   }
  }
- Ce.add_term({k:-this.ke, c:[b_e]}); // 3-2
+ Ce.add_term({k:-this.ke, c:[b_e]}); // 3-2, term for satisfying initial condition
  var total = infusion.integrate();
  total.add_term({ k:0, c:[initial.total] });
  var sol = new Solution({time:t, Ce:Ce, C1:C1, C2:C2, C3:C3, infusion:infusion, total:total, model:this});
@@ -926,7 +1018,7 @@ Model.prototype.simulate = function(infusion,initial){ // Linexp, state
 
 function give_solution(t, initial, infusion_rate, model){
  var infusion = new Linexp([{k:0, c:[infusion_rate], t:t}]);
- return model.simulate(infusion, initial);
+ return G=model.simulate(infusion, initial);
 }
 var Solution = function(obj){
  for(key in obj){
@@ -1032,7 +1124,7 @@ Row.prototype.calc_solutions_until = function(t2){
  var mg_per_val = UnitInfoList[this.unit].calc_mg_per_val(Current_patient.weight, this.labelinfo.mgmL);
  var pointer, t_next;
  var current_model = this.labelinfo.preset_model_g(Current_patient);
- for(pointer = 0; t_next = this.div_arr[pointer]; pointer++){
+ for(pointer = 0; (t_next = this.div_arr[pointer])!==undefined; pointer++){
   if( t_next >= t2 ){ break; }
   var C_next = !TCI_model? {Ce:0, C1:0, C2:0, C3:0, infusion:0, total:0}:
    {Ce:0, C1:0, C2:0, C3:0, infusion:0, total:0, TCI_Ce:0, TCI_C1:0, TCI_C2:0, TCI_C3:0}
@@ -1046,7 +1138,59 @@ Row.prototype.calc_solutions_until = function(t2){
    if(current_model.V3 < new_model.V3){ C_next.C3 *= current_model.V3 / new_model.V3; }
    current_model = new_model;
   }
-  if( this.entry_at[t_next] != undefined ){
+  if( this.entry_at[t_next] !== undefined ){
+   current_val = this.entry_at[t_next] * mg_per_val;
+   if(!is_infusion){ // bolus mode
+    C_next.C1 += current_val/current_model.V1;
+    C_next.total += current_val;
+    current_val = 0;
+   }
+  }
+  var solution_next = TCI_model?
+   give_solution_TCI(t_next, C_next, current_val, TCI_model, current_model):
+   give_solution(t_next, C_next, current_val, current_model);
+  solution_arr.push(solution_next);
+  current_solution = solution_next;
+ }
+ this.temp_solution_arr = solution_arr;
+ return solution_arr;
+}
+
+Row.prototype.calc_solutions_until_rand = function(t2, model_rand){
+ var solution_arr = [solution_zero];
+ var current_solution = solution_zero;
+ var current_val = 0;
+ var TCI_model = null;
+ if(this.TCI_model_g) TCI_model = this.TCI_model_g(Current_patient);
+ var is_infusion = UnitInfoList[this.unit].is_infusion;
+ var mg_per_val = UnitInfoList[this.unit].calc_mg_per_val(Current_patient.weight, this.labelinfo.mgmL);
+ var pointer, t_next;
+ var preset_model = this.labelinfo.preset_model_g(Current_patient);
+ var current_model = model_rand;
+ for(pointer = 0; (t_next = this.div_arr[pointer])!==undefined; pointer++){
+  if( t_next >= t2 ){ break; }
+  var C_next = !TCI_model? {Ce:0, C1:0, C2:0, C3:0, infusion:0, total:0}:
+   {Ce:0, C1:0, C2:0, C3:0, infusion:0, total:0, TCI_Ce:0, TCI_C1:0, TCI_C2:0, TCI_C3:0}
+  if(current_solution !== solution_zero){ 
+   C_next = current_solution.calc_at(t_next);
+  }
+  var new_model_ref = this.labelinfo.model_at[t_next];
+  if( new_model_ref ){ // simulate dilution
+   var V1 = new_model_ref.V1==preset_model.V1 ? model_rand.V1 : new_model_ref.V1;
+   var V2 = new_model_ref.V2==preset_model.V2 ? model_rand.V2 : new_model_ref.V2;
+   var V3 = new_model_ref.V3==preset_model.V3 ? model_rand.V3 : new_model_ref.V3;
+   var CL = new_model_ref.CL==preset_model.CL ? model_rand.CL : new_model_ref.CL;
+   var Q2 = new_model_ref.Q2==preset_model.Q2 ? model_rand.Q2 : new_model_ref.Q2;
+   var Q3 = new_model_ref.Q3==preset_model.Q3 ? model_rand.Q3 : new_model_ref.Q3;
+   var ke = new_model_ref.ke==preset_model.ke ? model_rand.ke : new_model_ref.ke;
+ //restore individual model if the parameter equals preset @ v1.6.2
+   new_model = model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke)
+   if(current_model.V1 < new_model.V1){ C_next.C1 *= current_model.V1 / new_model.V1; }
+   if(current_model.V2 < new_model.V2){ C_next.C2 *= current_model.V2 / new_model.V2; }
+   if(current_model.V3 < new_model.V3){ C_next.C3 *= current_model.V3 / new_model.V3; }
+   current_model = new_model;
+  }
+  if( this.entry_at[t_next] !== undefined ){
    current_val = this.entry_at[t_next] * mg_per_val;
    if(!is_infusion){ // bolus mode
     C_next.C1 += current_val/current_model.V1;
@@ -1182,6 +1326,91 @@ LabelInfo.prototype.simulate = function(showCompart){
        Compart.Ceexpr[xi].addlinexp(sol.Ce);
       }
      }
+    }
+    xi--;
+   }
+   si--;
+  }
+ }
+ return [C1_arr,Ce_arr];
+}
+
+var DBB;
+LabelInfo.prototype.simulate_t_arr_rand = function(t_arr, model_rand){// assume t_arr increase monotonicly
+ var xi, xN = t_arr.length;
+ var ri, rN = this.row_arr.length;
+ var Ce123it = {} 
+ Ce123it["Ce_ng_mL"] = new Array(xN);
+ Ce123it["C1_ng_mL"] = new Array(xN);
+ Ce123it["C2_ng_mL"] = new Array(xN);
+ Ce123it["C3_ng_mL"] = new Array(xN);
+ Ce123it["infusion_mg_h"] = new Array(xN);
+ Ce123it["total_mg"] = new Array(xN);
+ for(xi=0;xi<xN;xi++){
+  Ce123it["Ce_ng_mL"][xi] = 0;
+  Ce123it["C1_ng_mL"][xi] = 0;
+  Ce123it["C2_ng_mL"][xi] = 0;
+  Ce123it["C3_ng_mL"][xi] = 0;
+  Ce123it["infusion_mg_h"][xi] = 0;
+  Ce123it["total_mg"][xi] = 0;
+ }
+ for(ri=0;ri<rN;ri++){
+  if( this.row_arr[ri].labelarea_div.className == "labelarea_off" ) {continue;}
+  var sol_arr = this.row_arr[ri].calc_solutions_until_rand(t_arr[t_arr.length-1], model_rand);
+  var si = sol_arr.length - 1;
+  xi = xN-1;
+  while( xi>=0 ){
+   var sol = sol_arr[si];
+   while( t_arr[xi] >= sol.time && xi >= 0){
+    if(sol !== solution_zero){
+     var model = sol.model; 
+     var Ce123it_new = sol.calc_at( t_arr[xi] );
+     Ce123it["Ce_ng_mL"][xi] += Ce123it_new.Ce * 1000; // mg/L to ng/mL
+     Ce123it["C1_ng_mL"][xi] += Ce123it_new.C1 * 1000; // mg/L to ng/mL
+     Ce123it["C2_ng_mL"][xi] += Ce123it_new.C2 * 1000; // mg/L to ng/mL
+     Ce123it["C3_ng_mL"][xi] += Ce123it_new.C3 * 1000; // mg/L to ng/mL
+     Ce123it["infusion_mg_h"][xi] += Ce123it_new.infusion * 60; // mg/min to mg/h
+     Ce123it["total_mg"][xi] += Ce123it_new.total;
+    }
+    xi--;
+   }
+   si--;
+  }
+ }
+ var key; for(key in Ce123it){
+  for(xi=0;xi<xN;xi++){
+   if(Ce123it[key][xi] != Ce123it[key][xi].toPrecision(4)){
+    Ce123it[key][xi] = Ce123it[key][xi]>Accuracy? Ce123it[key][xi].toPrecision(4): "0";
+   }
+  }
+  Ce123it[key] = Ce123it[key].join(",");
+ }
+ return Ce123it;
+}
+//////
+LabelInfo.prototype.simulate_rand = function(model_rand){
+ var xi, xN = Canvas_common.x_arr.length;
+ var ri, rN = this.row_arr.length;
+ var C1_arr = new Array(xN);
+ var Ce_arr = new Array(xN);
+ var t_model;
+ for(xi=0;xi<xN;xi++){
+  C1_arr[xi] = 0;
+  Ce_arr[xi] = 0;
+ }
+ for(ri=0;ri<rN;ri++){
+  if( this.row_arr[ri].labelarea_div.className == "labelarea_off" ) {continue;}
+  var sol_arr = this.row_arr[ri].calc_solutions_until_rand(Canvas_common.t2, model_rand);
+  var si = sol_arr.length - 1;
+  xi = xN-1;
+  while( xi>=0 ){
+   var sol = sol_arr[si];
+   while( x2t(xi) >= sol.time && xi >= 0){
+    if(sol !== solution_zero){
+     var model = sol.model; 
+     var Ce123it = sol.calc_at(x2t(xi));
+     Ce_arr[xi] += Ce123it.Ce;
+     C1_arr[xi] += Ce123it.C1;
     }
     xi--;
    }
@@ -2559,10 +2788,12 @@ function output_conc(){
  document.getElementById("output_conc_area").value = JSON.stringify(temp_object, null, 1).replace(/\"/g, "");
 }
 
+
 /* ------------------- */
 
 // var output_file_name = 'output.json'
 var reader;
+
 
 function study(){
  reader = new FileReader();
@@ -3110,5 +3341,6 @@ edge://settings/content/automaticDownloads<br>
 2022/11/17 本体のv1.5.1を改造して作成<br>
 2024/1/28 不具合修正
 2024/5/20 不具合修正
+
 </div>
 </body></html>

@@ -112,8 +112,9 @@ AgentInfoList["Ketamine"] = new AgentInfo("mL","mL/h", 10, 100, "#008000"); //gr
 AgentInfoList["Dexmedetomidine"] = new AgentInfo("mL","μg/kg/h", 0.004, 1, "#008080"); //teal
 AgentInfoList["Fentanyl"] = new AgentInfo("mL","mL/h", 0.05, 1, "#ff0000"); //red
 AgentInfoList["Remifentanil"] =  new AgentInfo("mL","mL/h", 0.1, 1, "#808000"); // olive
-AgentInfoList["Rocuronium"] =  new AgentInfo("mg","mg/h", 10,500, "#800000"); // maroon
-AgentInfoList["Vecuronium"] =  new AgentInfo("mg","mg/h", 1,50, "#ff00ff"); // fuchsia
+AgentInfoList["Rocuronium"] =  new AgentInfo("mg","mg/h", 10, 500, "#800000"); // maroon
+AgentInfoList["Vecuronium"] =  new AgentInfo("mg","mg/h", 1, 50, "#ff00ff"); // fuchsia
+AgentInfoList["Midazolam"] =  new AgentInfo("mg","mg/h", 1, 1000, "#4b0082"); // indigo
 
 /* model */
 
@@ -340,6 +341,11 @@ var model_Vb_R1987_o = function(patient){ // Rupp,1987,younger
  return model_from_k(0.0389,0.4368,0.107,0.0787,0.0039, 0.5923 ,0.029*patient.weight);
 }
 
+ /* 2コンパートメントモデルを無理やり3コンパートメントにしている */
+var model_MDZ_V1981 = function(patient){ // Rupp,1987,younger
+ return model_from_k(0.021, 0.048, 0.00001, 0.019, 99999999, 0, 0.4*patient.weight);
+}
+
 AgentInfoList["Propofol"].preset_model_arr = [
  {model_g: model_P_E2018, label: "Eleveld,2018"},
  {model_g: model_P_A2005, label: "Absalom,2005"},
@@ -371,6 +377,9 @@ AgentInfoList["Rocuronium"].preset_model_arr = [
 AgentInfoList["Vecuronium"].preset_model_arr = [
  {model_g: model_Vb_R1987_y, label: "Rupp,1987,younger"},
  {model_g: model_Vb_R1987_o, label: "Rupp,1987,older"}
+];
+AgentInfoList["Midazolam"].preset_model_arr = [
+ {model_g: model_MDZ_V1981, label: "Lauven,1981"}
 ];
 
 Modelname2func = []; // used in load_data(), ex. Modelname2func["model_P_E2018"](..) = model_P_E2018(..)
@@ -3762,6 +3771,9 @@ Activate the checkbox to save as a CSV file.<br>
  <li>Vecuronium<ul>
   <li> Rupp, 1987 (体重を使用) (youngerは30-57歳、olderは70-84歳のデータ由来) [PMID: 2886080] </li>
  </ul></li>
+ <li>Midazolam<ul>
+  <li> Lauven, 1981 (体重を使用) (keデータなし) [PMID: 2886080] (実質的には[PMID: 3580236]を参照した) </li>
+ </ul></li>
 </ul>
 </div>
 
@@ -3796,7 +3808,10 @@ Activate the checkbox to save as a CSV file.<br>
   <li> Wierda, 1991 (using weight) (ke unavailable) [PMID: 1829656] </li>
  </ul></li>
  <li>Vecuronium<ul>
-  <li> Rupp, 1987 (using,weight) (younger [30-57 yr] / older [70-84 yr]) [PMID: 2886080] </li>
+  <li> Rupp, 1987 (using weight) (younger [30-57 yr] / older [70-84 yr]) [PMID: 2886080] </li>
+ </ul></li>
+ <li>Midazolam<ul>
+  <li> Lauven, 1981 (using weight) (ke unavailable) [PMID: 2886080] (practically referred to [PMID: 3580236]) </li>
  </ul></li>
 </ul>
 </div>
@@ -3878,7 +3893,7 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 2023/3/31; v1.6.0; フェンタニル個人差可視化機能追加<br>
 2023/9/17; v1.7.0; Bae,2020モデルの実装誤りを修正<br>
 2023/11/5; v1.8.0; フェンタニル個人差グラフに平均±SDを表示、不具合修正<br>
-2023/11/15; v1.8.1; データがあるときページを離れる前に警告<br>
+2024/9/1; v1.9.0; ミダゾラム追加<br>
 
 </div>
 <div lang="en">
@@ -3892,7 +3907,7 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 2023/3/31; v1.6.0; Fentanyl individual variance<br>
 2023/9/17; v1.7.0; Fix implementation error in the model Bae,2020<br>
 2023/11/5; v1.8.0; Display mean±SD of fentanyl, fix bug<br>
-2023/11/15 v1.8.1; Alert before unload if data exists<br>
+2024/9/1; v1.9.0; Add midazolam<br>
 </div>
 
 </div><!-- id=usage -->
@@ -3907,6 +3922,6 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 <hr>
 
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
-2023/11/15 v1.8.1<br>
+2024/9/1 v1.9.0<br>
 
 </body></html>
