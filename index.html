@@ -189,7 +189,7 @@ function multi_lognormal(e,L,rands) { // e:mean L:cholesky matrix
 }
 
 var model_P_E2018 = function(patient){ // Eleveld 2018 (ignore terms of maturation, assume presence of opiates)
- var theta = [0,6.28,25.5,273,1.79,1.75,1.11,0.191,42.3,9.06,-0.0156,-0.00286,33.6,-0.0138,68.3,2.10,1.30,1.42,0.68]
+ var theta = [0,6.28,25.5,273,1.79,1.75,1.11,0.191,42.3,9.06,-0.0156,-0.00286,33.6,-0.0138,68.3,2.10,1.30,1.42,0.68],
  theta_pd = [0,2.91,0.121,92.3,1.44,7.59,0.0499,-0.00917,0.87,1.83],
  fcentral = function(x){ return x/(x+theta[12]); },
  FFM = patient.FFM_AS,
@@ -203,6 +203,19 @@ var model_P_E2018 = function(patient){ // Eleveld 2018 (ignore terms of maturati
  ke = theta_pd[2] * Math.pow(patient.weight/70,-0.25);
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
 };
+
+var model_P_S1999 = function(patient){ // Schunider 1998,1999
+ var theta = [0, 4.27, 18.9, 238, 1.89, 1.29, 0.836, -0.391, 0.0456, -0.0681, 0.0264, -0.024];
+ var V1 = theta[1];
+ var V2 = theta[2] + theta[7] * (patient.age-53);
+ var V3 = theta[3];
+ var CL = theta[4] + (patient.weight - 77)*theta[8] + (patient.LBM - 59)*theta[9] + (patient.height - 177)*theta[10];
+ var Q2 = theta[5] + theta[11] * (patient.age-53);
+ var Q3 = theta[6];
+ var ke = 0.456;
+ return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
+};
+
 
 var model_P_A2005 = function(patient){ // Absalom,2005, Paedfusor
  if(patient.age > 16){return model_from_VQ(0,0,0,0,0,0,0);} // this model not applicable
@@ -349,6 +362,7 @@ var model_MDZ_V1981 = function(patient){ // Rupp,1987,younger
 AgentInfoList["Propofol"].preset_model_arr = [
  {model_g: model_P_E2018, label: "Eleveld,2018"},
  {model_g: model_P_A2005, label: "Absalom,2005"},
+ {model_g: model_P_S1999, label: "Schnider,1999"},
  {model_g: model_P_M1991, label: "Marsh,1991"}
 ];
 AgentInfoList["Remimazolam"].preset_model_arr = [
@@ -3743,6 +3757,7 @@ Activate the checkbox to save as a CSV file.<br>
  <li>Propofol<ul>
   <li> Eleveld, 2018 (年齢、性別、身長、体重を使用) [PMID: 29661412] </li>
   <li> Absalom, 2005 (年齢、体重を使用) (16歳以下のみ) (Peadfusor&reg;) [PMID: 15941735] </li>
+  <li> Schnider, 1999 (年齢、性別、身長、体重を使用) [PMID:9605675](ke以外) [PMID: 10360845](ke) </li>
   <li> Marsh, 1991 (体重を使用) および ke=0.26 (ディプリフューザー&reg;）[PMID: 9640110]) </li>
  </ul></li>
  <li>Remimazolam<ul>
@@ -3782,6 +3797,7 @@ Activate the checkbox to save as a CSV file.<br>
  <li>Propofol<ul>
   <li> Eleveld, 2018 (using age,sex,height,weight) [PMID: 29661412] </li>
   <li> Absalom, 2005 (using age,weight) (age≦16 only) (Peadfusor&reg;) [PMID: 15941735] </li>
+  <li> Schnider, 1999 (using age,sex,height,weight) [PMID:9605675](except ke) [PMID: 10360845](ke) </li>
   <li> Marsh, 1991 (using weight) and applying ke=0.26 (Diprifusor&reg;) [PMID: 9640110]) </li>
  </ul></li>
  <li>Remimazolam<ul>
@@ -3827,7 +3843,7 @@ Activate the checkbox to save as a CSV file.<br>
  <li>男性：45.4+0.89*(身長-152.4)+4.5</li>
  <li>女性：45.4+0.89*(身長-152.4)</li>
 </ul></li><li>ABW: 補正体重 = IBW+0.4*(体重-IBW) (Masuiが使用)</li>
-<li>LBM: 徐脂肪体重: (Mintoが使用)<ul>
+<li>LBM: 徐脂肪体重: (Schnider, Mintoが使用)<ul>
  <li>男性：1.1*体重-128*(体重/身長)<sup>2</sup></li>
  <li>女性：1.07*体重-148*(体重/身長)<sup>2</sup></li>
 </ul></li><li>FFM<sub>j</sub>: Janmahasatianの徐脂肪体重: (Kimが使用)<ul>
@@ -3844,7 +3860,7 @@ Activate the checkbox to save as a CSV file.<br>
  <li>45.4+0.89*(height-152.4)+4.5 for male</li>
  <li>45.4+0.89*(height-152.4) for female</li>
 </ul></li><li>ABW: adjusted body weight = IBW+0.4*(weight-IBW) (used by Masui)</li>
-<li>LBM: lean body mass: (used by Minto)<ul>
+<li>LBM: lean body mass: (used by Schnider, Minto)<ul>
  <li>1.1*weight-128*(weight/height)<sup>2</sup> for male</li>
  <li>1.07*weight-148*(weight/height)<sup>2</sup> for female</li>
 </ul></li><li>FFM<sub>j</sub>: fat free mass by Janmahasatian: (used by Kim)<ul>
@@ -3894,6 +3910,7 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 2023/9/17; v1.7.0; Bae,2020モデルの実装誤りを修正<br>
 2023/11/5; v1.8.0; フェンタニル個人差グラフに平均±SDを表示、不具合修正<br>
 2024/9/1; v1.9.0; ミダゾラム追加<br>
+2024/11/13; v1.10.0; Schniderモデル追加<br>
 
 </div>
 <div lang="en">
@@ -3908,6 +3925,7 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 2023/9/17; v1.7.0; Fix implementation error in the model Bae,2020<br>
 2023/11/5; v1.8.0; Display mean±SD of fentanyl, fix bug<br>
 2024/9/1; v1.9.0; Add midazolam<br>
+2024/11/13; v1.9.0; Add Schnider model<br>
 </div>
 
 </div><!-- id=usage -->
@@ -3922,6 +3940,6 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 <hr>
 
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
-2024/9/1 v1.9.0<br>
+2024/11/13 v1.10.0<br>
 
 </body></html>

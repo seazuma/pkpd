@@ -184,6 +184,18 @@ var model_P_E2018 = function(patient){ // Eleveld 2018 (ignore terms of maturati
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
 };
 
+var model_P_S1999 = function(patient){ // Schunider 1998,1999
+ var theta = [0, 4.27, 18.9, 238, 1.89, 1.29, 0.836, -0.391, 0.0456, -0.0681, 0.0264, -0.024];
+ var V1 = theta[1];
+ var V2 = theta[2] + theta[7] * (patient.age-53);
+ var V3 = theta[3];
+ var CL = theta[4] + (patient.weight - 77)*theta[8] + (patient.LBM - 59)*theta[9] + (patient.height - 177)*theta[10];
+ var Q2 = theta[5] + theta[11] * (patient.age-53);
+ var Q3 = theta[6];
+ var ke = 0.456;
+ return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
+};
+
 var model_P_A2005 = function(patient){ // Absalom,2005, Paedfusor
  if(patient.age > 16){return model_from_VQ(0,0,0,0,0,0,0);} // this model not applicable
  var k10 = 0.1527*Math.pow(patient.weight,-0.3);
@@ -3339,8 +3351,10 @@ edge://settings/content/automaticDownloads<br>
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
 
 2022/11/17 本体のv1.5.1を改造して作成<br>
-2024/1/28 不具合修正
-2024/5/20 不具合修正
+2024/1/28 不具合修正<br>
+2024/5/20 不具合修正<br>
+2024/9/1; 本体v1.9.0に合わせてミダゾラム追加<br>
+2024/11/13; 本体v1.10.0に合わせてSchniderモデル追加<br>
 
 </div>
 </body></html>
