@@ -62,7 +62,7 @@
         "row_arr": [
           {
             "unit": "ug/mL", //ug,mcg,μgはどれでも認識
-            "TCI_model_g": "model_P_M1991", // TCIに使うモデルの指定、必須（未指定の場合mg/minで処理される）
+            "TCI_model_g": "model_P_M1991", // TCIに使うモデルの指定、必須
             "entry_at": {
               "10.0": "3",
               "40.0": "0"
