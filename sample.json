@@ -73,3 +73,43 @@
     }
   }
 }
+/* 薬剤文字列やモデルの指定文字列は本体のソースコードの一部を抜粋した以下を参照：
+AgentInfoList["Propofol"].preset_model_arr = [
+ {model_g: model_P_E2018, label: "Eleveld,2018"},
+ {model_g: model_P_A2005, label: "Absalom,2005"},
+ {model_g: model_P_S1999, label: "Schnider,1999"},
+ {model_g: model_P_K1993, label: "Kataria,1993"},
+ {model_g: model_P_M1991, label: "Marsh,1991"}
+];
+AgentInfoList["Remimazolam"].preset_model_arr = [
+ {model_g: model_RMZ_M2022, label: "Masui,2022"},
+ {model_g: model_RMZ_D2014, label: "Doi,2014"}
+];
+AgentInfoList["Ketamine"].preset_model_arr = [
+ {model_g: model_K_K2020, label: "Kamp,2020"}
+];
+AgentInfoList["Dexmedetomidine"].preset_model_arr = [
+ {model_g: model_DEX_M2020, label: "Morse,2020"},
+ {model_g: model_DEX_H2015, label: "Hannivoort,2015"}
+];
+AgentInfoList["Fentanyl"].preset_model_arr = [
+ {model_g: model_F_B2020, label: "Bae, 2020"},
+ {model_g: model_F_S1990, label: "Shafer,1990"}
+];
+AgentInfoList["Remifentanil"].preset_model_arr = [
+ {model_g: model_RF_E2017, label: "Eleveld,2017"},
+ {model_g: model_RF_K2017, label: "Kim,2017"},
+ {model_g: model_RF_M1997, label: "Minto,1997"}
+];
+AgentInfoList["Rocuronium"].preset_model_arr = [
+ {model_g: model_Rb_W1991, label: "Wierda,1991"}
+];
+AgentInfoList["Vecuronium"].preset_model_arr = [
+ {model_g: model_Vb_R1987_y, label: "Rupp,1987,younger"},
+ {model_g: model_Vb_R1987_o, label: "Rupp,1987,older"}
+];
+AgentInfoList["Midazolam"].preset_model_arr = [
+ {model_g: model_MDZ_V1981, label: "Lauven,1981"}
+];
+
+*/

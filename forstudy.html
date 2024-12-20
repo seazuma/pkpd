@@ -196,6 +196,17 @@ var model_P_S1999 = function(patient){ // Schunider 1998,1999
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
 };
 
+var model_P_K1993 = function(patient){ // Kataria,1993, validated for 3-11 years
+ var V1 = 0.38*patient.weight;
+ var V2 = 0.59*patient.weight+3.1*patient.age-13
+ var V3 = 6.1*patient.weight
+ var CL = 0.037*patient.weight
+ var Q2 = 0.063*patient.weight
+ var Q3 = 0.025*patient.weight
+ var ke = 0.41;
+ return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
+}
+
 var model_P_A2005 = function(patient){ // Absalom,2005, Paedfusor
  if(patient.age > 16){return model_from_VQ(0,0,0,0,0,0,0);} // this model not applicable
  var k10 = 0.1527*Math.pow(patient.weight,-0.3);
@@ -342,6 +353,7 @@ AgentInfoList["Propofol"].preset_model_arr = [
  {model_g: model_P_E2018, label: "Eleveld,2018"},
  {model_g: model_P_A2005, label: "Absalom,2005"},
  {model_g: model_P_S1999, label: "Schnider,1999"},
+ {model_g: model_P_K1993, label: "Kataria,1993"},
  {model_g: model_P_M1991, label: "Marsh,1991"}
 ];
 AgentInfoList["Remimazolam"].preset_model_arr = [
@@ -3356,6 +3368,7 @@ edge://settings/content/automaticDownloads<br>
 2024/5/20 不具合修正<br>
 2024/9/1; 本体v1.9.0に合わせてミダゾラム追加<br>
 2024/11/13; 本体v1.10.0に合わせてSchniderモデル追加<br>
+2024/12/20; 本体v1.11.0に合わせてKatariaモデル追加<br>
 
 </div>
 </body></html>

@@ -216,6 +216,16 @@ var model_P_S1999 = function(patient){ // Schunider 1998,1999
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
 };
 
+var model_P_K1993 = function(patient){ // Kataria,1993
+ var V1 = 0.38*patient.weight;
+ var V2 = 0.59*patient.weight+3.1*patient.age-13
+ var V3 = 6.1*patient.weight
+ var CL = 0.037*patient.weight
+ var Q2 = 0.063*patient.weight
+ var Q3 = 0.025*patient.weight
+ var ke = 0.41;
+ return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
+}
 
 var model_P_A2005 = function(patient){ // Absalom,2005, Paedfusor
  if(patient.age > 16){return model_from_VQ(0,0,0,0,0,0,0);} // this model not applicable
@@ -363,6 +373,7 @@ AgentInfoList["Propofol"].preset_model_arr = [
  {model_g: model_P_E2018, label: "Eleveld,2018"},
  {model_g: model_P_A2005, label: "Absalom,2005"},
  {model_g: model_P_S1999, label: "Schnider,1999"},
+ {model_g: model_P_K1993, label: "Kataria,1993"},
  {model_g: model_P_M1991, label: "Marsh,1991"}
 ];
 AgentInfoList["Remimazolam"].preset_model_arr = [
@@ -770,7 +781,7 @@ function label_click(e){
  var row = Row_arr[n];
  if(row.labelinfo.preset_model_g == model_P_A2005 || row.TCI_model_g == model_P_A2005 ){
   if( Current_patient.age>16 && row.labelarea_div.className == "labelarea_off" ) {
-   alert(Lang=="en"?"This model is only valid for age≦16":"このモデルは16歳以下のみ有効です");return;
+   alert(Lang=="en"?"Absalom model is only valid for age≦16":"Absalomモデルは16歳以下のみ有効です");return;
  }}
  setClass(row.dosearea_div, div.className == "labelarea_off"? "dosearea": "dosearea_off");
  setClass(div, div.className == "labelarea_off"? "labelarea_on": "labelarea_off");
@@ -3598,6 +3609,8 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 <br>
  <textarea id="output_conc_area" rows="5" wrap="off"></textarea>
  <div id="csv_link"></div>
+ <span lang="ja"><a href="forstudy.html">複数症例シミュレーション(別ページ)</a></span>
+ <span lang="en"><a href="forstudy.html">Multiple Case Simulation (separate page, Japanese language only)</a></span>
 </div>
 
 <hr>
@@ -3758,6 +3771,7 @@ Activate the checkbox to save as a CSV file.<br>
   <li> Eleveld, 2018 (年齢、性別、身長、体重を使用) [PMID: 29661412] </li>
   <li> Absalom, 2005 (年齢、体重を使用) (16歳以下のみ) (Peadfusor&reg;) [PMID: 15941735] </li>
   <li> Schnider, 1999 (年齢、性別、身長、体重を使用) [PMID:9605675](ke以外) [PMID: 10360845](ke) </li>
+  <li> Kataria, 1993 (年齢、体重を使用) [PMID:8291699](ke以外) [PMID: 15564932](ke) </li>
   <li> Marsh, 1991 (体重を使用) および ke=0.26 (ディプリフューザー&reg;）[PMID: 9640110]) </li>
  </ul></li>
  <li>Remimazolam<ul>
@@ -3798,6 +3812,7 @@ Activate the checkbox to save as a CSV file.<br>
   <li> Eleveld, 2018 (using age,sex,height,weight) [PMID: 29661412] </li>
   <li> Absalom, 2005 (using age,weight) (age≦16 only) (Peadfusor&reg;) [PMID: 15941735] </li>
   <li> Schnider, 1999 (using age,sex,height,weight) [PMID:9605675](except ke) [PMID: 10360845](ke) </li>
+  <li> Kataria, 1993 (using age,weight) [PMID:8291699](ke以外) [PMID: 15564932](ke) </li>
   <li> Marsh, 1991 (using weight) and applying ke=0.26 (Diprifusor&reg;) [PMID: 9640110]) </li>
  </ul></li>
  <li>Remimazolam<ul>
@@ -3911,6 +3926,7 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 2023/11/5; v1.8.0; フェンタニル個人差グラフに平均±SDを表示、不具合修正<br>
 2024/9/1; v1.9.0; ミダゾラム追加<br>
 2024/11/13; v1.10.0; Schniderモデル追加<br>
+2024/12/20; v1.11.0; Katariaモデル追加<br>
 
 </div>
 <div lang="en">
@@ -3925,7 +3941,8 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 2023/9/17; v1.7.0; Fix implementation error in the model Bae,2020<br>
 2023/11/5; v1.8.0; Display mean±SD of fentanyl, fix bug<br>
 2024/9/1; v1.9.0; Add midazolam<br>
-2024/11/13; v1.9.0; Add Schnider model<br>
+2024/11/13; v1.10.0; Add Schnider model<br>
+2024/12/20; v1.11.0; Add Kataria model<br>
 </div>
 
 </div><!-- id=usage -->
@@ -3940,6 +3957,6 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 <hr>
 
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
-2024/11/13 v1.10.0<br>
+2024/12/20 v1.11.0<br>
 
 </body></html>
