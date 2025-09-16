@@ -3,6 +3,7 @@
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <meta name="viewport" content="width=750">
 <title>AnesSimulator_output</title>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
 
 // default units are mg, min, L
@@ -168,18 +169,19 @@ function multi_lognormal(e,L,rands) { // e:mean L:cholesky matrix
   return y;
 }
 
+var is_opioid = 1; //　assume presence of opiates
 var model_P_E2018 = function(patient){ // Eleveld 2018 (ignore terms of maturation, assume presence of opiates)
- var theta = [0,6.28,25.5,273,1.79,1.75,1.11,0.191,42.3,9.06,-0.0156,-0.00286,33.6,-0.0138,68.3,2.10,1.30,1.42,0.68]
- theta_pd = [0,2.91,0.121,92.3,1.44,7.59,0.0499,-0.00917,0.87,1.83],
+ var theta = [0,6.28,25.5,273,1.79,1.75,1.11,0.191,42.3,9.06,-0.0156,-0.00286,33.6,-0.0138,68.3,2.10,1.30,1.42,0.68];
+ var theta_pd = [0, 3.08, 0.146, 92.98, 1.47, 8.03, 0.05174, -0.00635, 1.24, 1.89];
  fcentral = function(x){ return x/(x+theta[12]); },
  FFM = patient.FFM_AS,
  FFMref = (0.88+(1-0.88)/(1+Math.pow(35/13.4,-12.7)))*(9270*70/(6680+216*70*10000/(170*170))),
  V1 = theta[1] * fcentral(patient.weight)/fcentral(70),
  V2 = theta[2] * patient.weight/70 * Math.exp(theta[10]*(patient.age-35)),
- V3 = theta[3] * FFM/FFMref * Math.exp(theta[13]*(patient.age-35)),
- CL = (patient.sex==0?theta[4]:theta[15])*Math.pow(patient.weight/70,0.75)*Math.exp(theta[11]*patient.age),
+ V3 = theta[3] * FFM/FFMref * Math.exp(theta[13]*patient.age*is_opioid),
+ CL = (patient.sex==0?theta[4]:theta[15])*Math.pow(patient.weight/70,0.75)*Math.exp(theta[11]*patient.age*is_opioid),
  Q2 = theta[5] * Math.pow(patient.weight/70 * Math.exp(theta[10]*(patient.age-35)),0.75),
- Q3 = theta[6] * Math.pow(patient.weight/70 * Math.exp(theta[13]*(patient.age-35)),0.75),
+ Q3 = theta[6] * Math.pow( FFM/FFMref * Math.exp(theta[13]*patient.age*is_opioid), 0.75 );
  ke = theta_pd[2] * Math.pow(patient.weight/70,-0.25);
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
 };
@@ -2819,113 +2821,123 @@ function output_conc(){
 // var output_file_name = 'output.json'
 var reader;
 
-
 function study(){
  reader = new FileReader();
  reader.readAsText(document.getElementById("input_file").files[0], 'UTF-8');
  drug_arr_ready();
  reader.onload = study2;
 }
-function study2(){
- var all_object = JSON.parse(reader.result);
- for (sid in all_object){
-  console.log("studyid:"+sid);
-  temp_object = all_object[sid];
-  if(temp_object.patient){
-   document.getElementById("age").value = temp_object.patient.age;
-   document.getElementById("sex").value = temp_object.patient.sex;
-   document.getElementById("height").value = temp_object.patient.height;
-   document.getElementById("weight").value = temp_object.patient.weight;
-   document.getElementById("high_ASA").value = temp_object.patient.high_ASA?"1":"0";
-  }
-  load_patient() //v1.6.2
-  if(temp_object.t1 && temp_object.t_scale){
-   update_x_axis(parseInt(temp_object.t1), parseInt(temp_object.t_scale));
-  }
-  var ri; for(ri=Row_arr.length-2; ri>=0; ri--){
-   delete_row(ri);
-  }
-  for(label in temp_object.data){
-   var labelinfo = temp_object.data[label];
-    var agent = labelinfo.agent;
-   if(!AgentInfoList[agent]){
-    console.log("Invalid agent:"+agent);
-    continue;
-   }
-   var row, row_arr = labelinfo.row_arr;
-   if(!row_arr.length){
-    console.log("Invalid row_arr:"+label);
-    continue;
-   }
-   for(ri=0; ri<row_arr.length; ri++){
-    row = Row_arr[Row_arr.length-1];
-    var unit = row_arr[ri].unit;
-    unit = unit.split("ug").join("μg").split("mcg").join("μg");
-    if(!UnitInfoList[unit]){
-     console.log("Invalid unit:"+unit);
-     continue;
+
+/* 2025/09/17 */
+
+async function study2(){
+  const all_object = JSON.parse(reader.result);
+  const zip = new JSZip(); // ← ここで1つだけ作る
+
+  for (const sid of Object.keys(all_object)) {
+    console.log("studyid:"+sid);
+    const temp_object = all_object[sid];
+
+    if(temp_object.patient){
+      document.getElementById("age").value = temp_object.patient.age;
+      document.getElementById("sex").value = temp_object.patient.sex;
+      document.getElementById("height").value = temp_object.patient.height;
+      document.getElementById("weight").value = temp_object.patient.weight;
+      document.getElementById("high_ASA").value = temp_object.patient.high_ASA?"1":"0";
     }
-    var unit_span = UnitInfoList[unit].is_infusion? AgentInfoList[agent].span_infusion: AgentInfoList[agent].span_bolus;
-    unit_span.innerHTML = unit;
-    row.register(label, unit_span)
-    if(row_arr[ri].TCI_model_g){
-     row.TCI_model_g = Modelname2func[row_arr[ri].TCI_model_g];
+    load_patient(); // v1.6.2
+
+    if(temp_object.t1 && temp_object.t_scale){
+      update_x_axis(parseInt(temp_object.t1), parseInt(temp_object.t_scale));
     }
-    var t; for(t in row_arr[ri].entry_at){
-     row.add_data(parseInt(t), row_arr[ri].entry_at[t], null, null);
+
+    // 既存行のクリア
+    for (let ri = Row_arr.length - 2; ri >= 0; ri--) delete_row(ri);
+
+    // ラベル/行の復元
+    for (const label in temp_object.data){
+      const labelinfo = temp_object.data[label];
+      const agent = labelinfo.agent;
+      if(!AgentInfoList[agent]){ console.log("Invalid agent:"+agent); continue; }
+
+      const row_arr = labelinfo.row_arr;
+      if(!row_arr.length){ console.log("Invalid row_arr:"+label); continue; }
+
+      for (let ri=0; ri<row_arr.length; ri++){
+        let row = Row_arr[Row_arr.length-1];
+        let unit = row_arr[ri].unit;
+        unit = unit.split("ug").join("μg").split("mcg").join("μg");
+        if(!UnitInfoList[unit]){ console.log("Invalid unit:"+unit); continue; }
+
+        const unit_span = UnitInfoList[unit].is_infusion ? 
+                          AgentInfoList[agent].span_infusion : 
+                          AgentInfoList[agent].span_bolus;
+        unit_span.innerHTML = unit;
+        row.register(label, unit_span);
+        if(row_arr[ri].TCI_model_g){
+          row.TCI_model_g = Modelname2func[row_arr[ri].TCI_model_g];
+        }
+        for (const t in row_arr[ri].entry_at){
+          row.add_data(parseInt(t), row_arr[ri].entry_at[t], null, null);
+        }
+        row.labelarea_div.innerHTML = label + "(" + unit + ")";
+        if(labelinfo.color){ row.labelarea_div.style.color = labelinfo.color; }
+        create_new_row();
+      }
+
+      if(labelinfo.preset_model_g){
+        LabelInfoList[label].preset_model_g = Modelname2func[labelinfo.preset_model_g];
+      }
+      for (const key of ["mgmL","y_scale_50","color"]){
+        if(labelinfo[key]){ LabelInfoList[label][key] = labelinfo[key]; }
+      }
+      for (const t in labelinfo.model_at){
+        let dose = NaN;
+        if (row.entry_at[t]){ // 既存doseを拾ってから削除
+          dose = row.entry_at[t];
+          row.delete_data(t);
+        }
+        const model = new Model();
+        for (const k in labelinfo.model_at[t]) model[k] = labelinfo.model_at[t][k];
+        row.add_data(parseInt(t), dose, model, null);
+      }
     }
-    row.labelarea_div.innerHTML = label + "(" + unit + ")"; 
-    if(labelinfo.color){ row.labelarea_div.style.color = labelinfo.color; }
-    create_new_row();
-   }
-   if(labelinfo.preset_model_g){
-    LabelInfoList[label].preset_model_g = Modelname2func[labelinfo.preset_model_g];
-   }
-   var ki, keys = ["mgmL","y_scale_50","color"];
-   for(ki=0; ki<keys.length; ki++){
-    var key = keys[ki];
-    if(labelinfo[key]){
-     LabelInfoList[label][key] = labelinfo[key];
+
+    // --- CSV本文の作成 ---
+    const output_arr = [];
+    const t1 = parseFloat(temp_object["t1"]);
+    const t2 = parseFloat(temp_object["t2"]);
+    let dt = 3/60; // 3sec
+    if (temp_object["dt"]) dt = parseFloat(temp_object["dt"]);
+
+    const t_arr = [];
+    for (let x=0; x < (t2 - t1)/dt; x++){
+      t_arr.push(t1 + x*dt);
     }
-   }
-   var t; for(t in labelinfo.model_at){
-    var dose = NaN;
-    if( row.entry_at[t] ){
-     dose = row.entry_at[t];
-     row.delete_data(t);
+    for (const label in LabelInfoList){
+      const labelinfo = LabelInfoList[label];
+      const C123eit = labelinfo.simulate_t_arr(t_arr);
+      for (const key in C123eit){
+        output_arr.push(`${label}:${key},${C123eit[key]}`);
+      }
     }
-    var model = new Model();
-    var key; for(key in labelinfo.model_at[t]){
-     model[key] = labelinfo.model_at[t][key];
-    }
-    row.add_data(parseInt(t), dose, model, null);
-   }
+
+    // ←← ここが重要：症例ごとに zip に追加するだけ（DLはしない）
+    zip.file(`${sid}.csv`, output_arr.join("\n"));
   }
-/* --- */
-  output_arr = [];
-  var t1 = parseFloat(temp_object["t1"]);
-  var t2 = parseFloat(temp_object["t2"]);
-  var dt = 3/60 // 3sec
-  if(temp_object["dt"]){dt = parseFloat(temp_object["dt"]);}
-  var x, t_arr = [], disp_t_arr = [];
-  for(x=0; x<(t2-t1)/dt; x++){
-   var t = t1 + x*dt;
-   t_arr.push(t);
-  }
-  for(label in LabelInfoList){
-   var labelinfo = LabelInfoList[label];
-   var C123eit = labelinfo.simulate_t_arr(t_arr);
-   for(key in C123eit){
-    output_arr.push(label+":"+key+","+C123eit[key]);
-   }
-  }
-  output_text = output_arr.join("\n");
-  var blob = new Blob([output_text],{type:"text/csv"});
-  var mylink = document.createElement('a');
-  mylink.href = URL.createObjectURL(blob);
-  mylink.download = sid+".csv"
-  mylink.click();
- }
+
+  // ループが全部終わってから、一度だけzipを作ってダウンロード
+  const blob = await zip.generateAsync({
+    type: "blob",
+    compression: "DEFLATE",
+    compressionOptions: { level: 6 }
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "all_cases.zip";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
 }
 
 function my_onload(){
@@ -3353,12 +3365,17 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 <hr>
 複数症例の薬剤投与情報から薬物濃度シミュレーションを一括で行います。<br>
 薬剤投与情報はJSONファイルで用意したものを上記ボタンで選択し、<br>
-outputをクリックするとcsvファイルのダウンロードで出力します。<br>
+outputをクリックするとcsvファイルのzipファイルでダウンロードします。<br>
 JSONファイルの形式は<a href="sample.json">sample.json</a>を参照。<br>
 <br>
+症例が多いと反応に時間がかかります。F12コンソールを見えるようにしておくと進捗が見えます。<br>
+Windows のインターネットから取得したファイル判定によるブロックの解除方法：<br>
+zipファイル右クリックから、プロパティ、一番下「セキュリティ：…ブロックされています」横のチェックボックス<br>
+<!--
 ・複数ファイルをダウンロードするための設定をしておくと良いです。edgeの場合：<br>
 edge://settings/downloads<br>
 edge://settings/content/automaticDownloads<br>
+-->
 <hr>
 
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
@@ -3369,6 +3386,7 @@ edge://settings/content/automaticDownloads<br>
 2024/9/1; 本体v1.9.0に合わせてミダゾラム追加<br>
 2024/11/13; 本体v1.10.0に合わせてSchniderモデル追加<br>
 2024/12/20; 本体v1.11.0に合わせてKatariaモデル追加<br>
+2025/9/17; 本体v1.12.0に合わせてEleveldモデル修正、zipでダウンロードする仕様に変更<br>
 
 </div>
 </body></html>

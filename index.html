@@ -188,18 +188,19 @@ function multi_lognormal(e,L,rands) { // e:mean L:cholesky matrix
   return y;
 }
 
+var is_opioid = 1; //　assume presence of opiates
 var model_P_E2018 = function(patient){ // Eleveld 2018 (ignore terms of maturation, assume presence of opiates)
- var theta = [0,6.28,25.5,273,1.79,1.75,1.11,0.191,42.3,9.06,-0.0156,-0.00286,33.6,-0.0138,68.3,2.10,1.30,1.42,0.68],
- theta_pd = [0,2.91,0.121,92.3,1.44,7.59,0.0499,-0.00917,0.87,1.83],
+ var theta = [0,6.28,25.5,273,1.79,1.75,1.11,0.191,42.3,9.06,-0.0156,-0.00286,33.6,-0.0138,68.3,2.10,1.30,1.42,0.68];
+ var theta_pd = [0, 3.08, 0.146, 92.98, 1.47, 8.03, 0.05174, -0.00635, 1.24, 1.89];
  fcentral = function(x){ return x/(x+theta[12]); },
  FFM = patient.FFM_AS,
  FFMref = (0.88+(1-0.88)/(1+Math.pow(35/13.4,-12.7)))*(9270*70/(6680+216*70*10000/(170*170))),
  V1 = theta[1] * fcentral(patient.weight)/fcentral(70),
  V2 = theta[2] * patient.weight/70 * Math.exp(theta[10]*(patient.age-35)),
- V3 = theta[3] * FFM/FFMref * Math.exp(theta[13]*(patient.age-35)),
- CL = (patient.sex==0?theta[4]:theta[15])*Math.pow(patient.weight/70,0.75)*Math.exp(theta[11]*patient.age),
+ V3 = theta[3] * FFM/FFMref * Math.exp(theta[13]*patient.age*is_opioid),
+ CL = (patient.sex==0?theta[4]:theta[15])*Math.pow(patient.weight/70,0.75)*Math.exp(theta[11]*patient.age*is_opioid),
  Q2 = theta[5] * Math.pow(patient.weight/70 * Math.exp(theta[10]*(patient.age-35)),0.75),
- Q3 = theta[6] * Math.pow(patient.weight/70 * Math.exp(theta[13]*(patient.age-35)),0.75),
+ Q3 = theta[6] * Math.pow( FFM/FFMref * Math.exp(theta[13]*patient.age*is_opioid), 0.75 );
  ke = theta_pd[2] * Math.pow(patient.weight/70,-0.25);
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
 };
@@ -291,7 +292,7 @@ var model_F_B2020 = function(patient){ // Bae, 2020
  CL = 0.704 * Math.pow(patient.weight/70, 0.313),
  Q2 = 2.38 * Math.pow(patient.weight/70, 0.313),
  Q3 = 1.49 * Math.pow(patient.weight/70, 0.313);
- ke = 0.147;
+ var ke = 0.147;
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,ke);
 };
 
@@ -1994,6 +1995,33 @@ function canvas_vline(x){
  ctx_4_cursor.beginPath(); ctx_4_cursor.moveTo(x, 0); ctx_4_cursor.lineTo(x, H); ctx_4_cursor.stroke();
 }
 
+/* 当初はIEでも動くように工夫していたが、2025年にもなればもうconstで良いだろう */
+function bis_from_eleveld_pd(Ce_ng_mL, ageYears){
+  /* 本文/SDCの最終PD推定値（実数で統一）*/
+  const E50_ref = 3.08;      // mg/L
+  const E50_age = -0.00635;  // 1/year （E50の年齢傾き；AGE-35 で中心化）
+  const GAM     = 1.47;      // γ（低濃度側）
+  const GAM1    = 1.89;      // γ（高濃度側）
+  const EMAX    = 92.98;     // BISの上限（ベースライン）
+  // 単位を ng/mL → mg/L に揃える
+  const Ce_mg_L = Ce_ng_mL / 1000.0;
+  // 年齢補正入りの E50
+  const E50 = E50_ref * Math.exp(E50_age * (ageYears - 35.0));
+  // γ のブレンド（SDCの WGAM ロジスティック切替）
+  const WGAM = 1.0 / (1.0 + Math.exp(-30.0 * (Ce_mg_L - E50)));
+  const gamma = WGAM * GAM + (1.0 - WGAM) * GAM1;
+  // ヒル関数 → BIS
+  const Ce_g  = Math.pow(Ce_mg_L, gamma);
+  const E50_g = Math.pow(E50,     gamma);
+  const PEFF  = Ce_g / (Ce_g + E50_g);   // 効果率
+  const BIS   = EMAX * (1.0 - PEFF);     // EMAX - EMAX*PEFF
+  return BIS;
+}
+
+// （任意）BIS遅延 ALAG1 を入れたい場合：
+// const ALAG1 = (15/60) + Math.exp(0.05174 * ageYears)/60; // 時間軸の単位に合わせて使う
+
+
 function canvas1_cross( x,y ){
  if (x<0 || x>W || y<0 || y>H){ delete_cursor(); return;}
  canvas_vline(x);
@@ -2013,6 +2041,15 @@ function canvas1_cross( x,y ){
   var txt = label + ":Cp=" + myPrecision(C.C1_ng_mL/unit);
   if(C.Ce_ng_mL!=0){ txt += ",Ce=" + myPrecision(C.Ce_ng_mL/unit); }
   txt += unit==1000?"[μg/mL]":"[ng/mL]";
+
+  // ここで Eleveld Propofol の BIS を併記
+  if (labelinfo.preset_model_g == model_P_E2018) {
+    // 年齢の取り方は環境に合わせて：labelinfo.age, labelinfo.patient.age など
+    var ageYears = Current_patient.age;
+    var bis = bis_from_eleveld_pd(C.Ce_ng_mL, ageYears);
+    txt += ", BIS=" + myPrecision(bis);
+  }
+
   ctx_1_cursor.textAlign = x>W/2? "right": "left";
   ctx_1_cursor.textBaseline = y>18*countN? "alphabetic": "top";
   ctx_1_cursor.fillText(txt , x, y-2 + ((y>18*countN?0:countN-1)-count)*18);
@@ -3768,7 +3805,7 @@ Activate the checkbox to save as a CSV file.<br>
 <div lang="ja">
 <ul>
  <li>Propofol<ul>
-  <li> Eleveld, 2018 (年齢、性別、身長、体重を使用) [PMID: 29661412] </li>
+  <li> Eleveld, 2018 (年齢、性別、身長、体重を使用) [PMID: 29661412] (新生児項無視、オピオイド併用あり) </li>
   <li> Absalom, 2005 (年齢、体重を使用) (16歳以下のみ) (Peadfusor&reg;) [PMID: 15941735] </li>
   <li> Schnider, 1999 (年齢、性別、身長、体重を使用) [PMID:9605675](ke以外) [PMID: 10360845](ke) </li>
   <li> Kataria, 1993 (年齢、体重を使用) [PMID:8291699](ke以外) [PMID: 15564932](ke) </li>
@@ -3809,7 +3846,7 @@ Activate the checkbox to save as a CSV file.<br>
 <div lang="en">
 <ul>
  <li>Propofol<ul>
-  <li> Eleveld, 2018 (using age,sex,height,weight) [PMID: 29661412] </li>
+  <li> Eleveld, 2018 (using age,sex,height,weight) [PMID: 29661412] (ignore terms of maturation, assume presence of opiates)</li>
   <li> Absalom, 2005 (using age,weight) (age≦16 only) (Peadfusor&reg;) [PMID: 15941735] </li>
   <li> Schnider, 1999 (using age,sex,height,weight) [PMID:9605675](except ke) [PMID: 10360845](ke) </li>
   <li> Kataria, 1993 (using age,weight) [PMID:8291699](ke以外) [PMID: 15564932](ke) </li>
@@ -3927,6 +3964,7 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 2024/9/1; v1.9.0; ミダゾラム追加<br>
 2024/11/13; v1.10.0; Schniderモデル追加<br>
 2024/12/20; v1.11.0; Katariaモデル追加<br>
+2025/9/17; v1.12.0; Eleveld,2018モデルの実装誤りを修正、モデルに基づくBISを表示<br>
 
 </div>
 <div lang="en">
@@ -3943,6 +3981,7 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 2024/9/1; v1.9.0; Add midazolam<br>
 2024/11/13; v1.10.0; Add Schnider model<br>
 2024/12/20; v1.11.0; Add Kataria model<br>
+2025/9/17; v1.12.0; Fix implementation error in the model Eleveld,2018, display BIS calculated from the model<br>
 </div>
 
 </div><!-- id=usage -->
@@ -3957,6 +3996,6 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 <hr>
 
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
-2024/12/20 v1.11.0<br>
+2025/9/17 v1.12.0<br>
 
 </body></html>
