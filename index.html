@@ -480,6 +480,23 @@ function setEvent(elem,key,func){
  if(elem.addEventListener){ elem.addEventListener(key, func, false); }
  else if(elem.attachEvent){ elem.attachEvent(key, func, false); }
 }
+function transposeCsvMatrix(matrix){
+ var rowCount = matrix.length;
+ if(rowCount === 0){ return []; }
+ var colCount = 0;
+ for(var row=0; row<rowCount; row++){
+  if(matrix[row].length > colCount){ colCount = matrix[row].length; }
+ }
+ var result = [];
+ for(var col=0; col<colCount; col++){
+  var newRow = [];
+  for(var row=0; row<rowCount; row++){
+   newRow.push(matrix[row][col] !== undefined ? matrix[row][col] : "");
+  }
+  result.push(newRow);
+ }
+ return result;
+}
 function myPrecision(x){// my display style
  return isNaN(x)? "":x<-0.0001? "-"+myPrecision(-x): x>=100? x.toFixed(0):x>=10? x.toFixed(0)+".0"==x.toFixed(1)? x.toFixed(0): x.toFixed(1):
   x>=1? x.toFixed(0)+".00"==x.toFixed(2)? x.toFixed(0): x.toFixed(1)+"0"==x.toFixed(2)? x.toFixed(1): x.toFixed(2)
@@ -3001,7 +3018,7 @@ function load_data(){
 
 function output_conc(){
  var temp_object = {};
- var csv_data = [];
+ var csv_matrix = [];
  var t1 = hm2min(document.getElementById("output_t1").value);
  var t2 = hm2min(document.getElementById("output_t2").value);
  var disp_dt = parseFloat(document.getElementById("output_dt").value);
@@ -3024,20 +3041,25 @@ function output_conc(){
  var dt = disp_dt / parseInt(document.getElementById("output_t_scale").value);
  var t_unit = document.getElementById("output_t_scale").value=="60"?"sec":"min";
  var x, t_arr = [], disp_t_arr = [];
- for(x=0; x<(t2-t1)/dt; x++){
+ for(x=0; x<=(t2-t1)/dt; x++){
   var t = t1 + x*dt;
   var disp_t = x*disp_dt;
   t_arr.push(t);
   disp_t_arr.push(disp_t);
  }
  temp_object["dt_" + t_unit] = disp_t_arr.join(",");
- csv_data.push("dt_" + t_unit + "," + disp_t_arr.join(","))
+ csv_matrix.push(["dt_" + t_unit].concat(disp_t_arr));
  for(label in LabelInfoList){
   var labelinfo = LabelInfoList[label];
   temp_object[label] = labelinfo.simulate_t_arr(t_arr);
   for(key in temp_object[label]){
-   csv_data.push(label + ":" + key + "," + temp_object[label][key]);
+   csv_matrix.push([label + ":" + key].concat(temp_object[label][key].split(",")));
   }
+ }
+ var csv_data = [];
+ var transposed = transposeCsvMatrix(csv_matrix);
+ for(var ci=0; ci<transposed.length; ci++){
+  csv_data.push(transposed[ci].join(","));
  }
  document.getElementById("output_conc_area").value = JSON.stringify(temp_object, null, 1).replace(/\"/g, "");
  if( document.getElementById("output_csv").checked ){
@@ -3056,7 +3078,7 @@ function output_conc(){
 
 function area4_output_conc(){
  var temp_object = {};
- var csv_data = [];
+ var csv_matrix = [];
  var t1 = hm2min(document.getElementById("area4_output_t1").value);
  var t2 = hm2min(document.getElementById("area4_output_t2").value);
  var disp_dt = parseFloat(document.getElementById("area4_output_dt").value);
@@ -3079,14 +3101,14 @@ function area4_output_conc(){
  var dt = disp_dt / parseInt(document.getElementById("area4_output_t_scale").value);
  var t_unit = document.getElementById("area4_output_t_scale").value=="60"?"sec":"min";
  var x, t_arr = [], disp_t_arr = [];
- for(x=0; x<(t2-t1)/dt; x++){
+ for(x=0; x<=(t2-t1)/dt; x++){
   var t = t1 + x*dt;
   var disp_t = x*disp_dt;
   t_arr.push(t);
   disp_t_arr.push(disp_t);
  }
  temp_object["dt_" + t_unit] = disp_t_arr.join(",");
- csv_data.push("dt_" + t_unit + "," + disp_t_arr.join(","))
+ csv_matrix.push(["dt_" + t_unit].concat(disp_t_arr));
  for(label in LabelInfoList){
   var indi,labelinfo = LabelInfoList[label];
   if(labelinfo.agent == "Fentanyl"){
@@ -3095,9 +3117,14 @@ function area4_output_conc(){
     label_i = label+"_sample_"+indi;
     temp_object[label_i] = labelinfo.simulate_t_arr_rand(t_arr, model_rand);
     for(key in temp_object[label_i]){
-     csv_data.push(label_i + ":" + key + "," + temp_object[label_i][key]);
+     csv_matrix.push([label_i + ":" + key].concat(temp_object[label_i][key].split(",")));
     }
- }}}
+}}}
+ var csv_data = [];
+ var transposed = transposeCsvMatrix(csv_matrix);
+ for(var ci=0; ci<transposed.length; ci++){
+  csv_data.push(transposed[ci].join(","));
+ }
  document.getElementById("area4_output_conc_area").value = JSON.stringify(temp_object, null, 1).replace(/\"/g, "");
  if( document.getElementById("area4_output_csv").checked ){
   var filename = "fentanyl_output.csv";
@@ -3965,8 +3992,9 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 2024/11/13; v1.10.0; Schniderモデル追加<br>
 2024/12/20; v1.11.0; Katariaモデル追加<br>
 2025/9/17; v1.12.0; Eleveld,2018モデルの実装誤りを修正、モデルに基づくBISを表示<br>
-
+2025/10/23; v1.13.0; CSV出力形式調整<br>
 </div>
+
 <div lang="en">
 <h4>Version history</h4>
 2022/8/16; v1.0.0<br>
@@ -3982,6 +4010,7 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 2024/11/13; v1.10.0; Add Schnider model<br>
 2024/12/20; v1.11.0; Add Kataria model<br>
 2025/9/17; v1.12.0; Fix implementation error in the model Eleveld,2018, display BIS calculated from the model<br>
+2025/10/23; v1.13.0; Fix CSV output format<br>
 </div>
 
 </div><!-- id=usage -->
@@ -3996,6 +4025,6 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 <hr>
 
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
-2025/9/17 v1.12.0<br>
+2025/10/23 v1.13.0<br>
 
 </body></html>

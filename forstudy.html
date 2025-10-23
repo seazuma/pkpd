@@ -461,6 +461,23 @@ function setEvent(elem,key,func){
  if(elem.addEventListener){ elem.addEventListener(key, func, false); }
  else if(elem.attachEvent){ elem.attachEvent(key, func, false); }
 }
+function transposeCsvMatrix(matrix){
+ var rowCount = matrix.length;
+ if(rowCount === 0){ return []; }
+ var colCount = 0;
+ for(var row=0; row<rowCount; row++){
+  if(matrix[row].length > colCount){ colCount = matrix[row].length; }
+ }
+ var result = [];
+ for(var col=0; col<colCount; col++){
+  var newRow = [];
+  for(var row=0; row<rowCount; row++){
+   newRow.push(matrix[row][col] !== undefined ? matrix[row][col] : "");
+  }
+  result.push(newRow);
+ }
+ return result;
+}
 function myPrecision(x){// my display style
  return isNaN(x)? "":x<-0.0001? "-"+myPrecision(-x): x>=100? x.toFixed(0):x>=10? x.toFixed(0)+".0"==x.toFixed(1)? x.toFixed(0): x.toFixed(1):
   x>=1? x.toFixed(0)+".00"==x.toFixed(2)? x.toFixed(0): x.toFixed(1)+"0"==x.toFixed(2)? x.toFixed(1): x.toFixed(2)
@@ -2904,23 +2921,25 @@ async function study2(){
     }
 
     // --- CSV本文の作成 ---
-    const output_arr = [];
+    const csv_matrix = [];
     const t1 = parseFloat(temp_object["t1"]);
     const t2 = parseFloat(temp_object["t2"]);
     let dt = 3/60; // 3sec
     if (temp_object["dt"]) dt = parseFloat(temp_object["dt"]);
 
     const t_arr = [];
-    for (let x=0; x < (t2 - t1)/dt; x++){
+    for (let x=0; x<= (t2 - t1)/dt; x++){
       t_arr.push(t1 + x*dt);
     }
     for (const label in LabelInfoList){
       const labelinfo = LabelInfoList[label];
       const C123eit = labelinfo.simulate_t_arr(t_arr);
       for (const key in C123eit){
-        output_arr.push(`${label}:${key},${C123eit[key]}`);
+        csv_matrix.push([`${label}:${key}`].concat(C123eit[key].split(",")));
       }
     }
+
+    const output_arr = transposeCsvMatrix(csv_matrix).map(row => row.join(","));
 
     // ←← ここが重要：症例ごとに zip に追加するだけ（DLはしない）
     zip.file(`${sid}.csv`, output_arr.join("\n"));
@@ -3387,6 +3406,7 @@ edge://settings/content/automaticDownloads<br>
 2024/11/13; 本体v1.10.0に合わせてSchniderモデル追加<br>
 2024/12/20; 本体v1.11.0に合わせてKatariaモデル追加<br>
 2025/9/17; 本体v1.12.0に合わせてEleveldモデル修正、zipでダウンロードする仕様に変更<br>
+2025/10/23; 本体v1.13.0に合わせてCSV出力形式調整<br>
 
 </div>
 </body></html>
