@@ -229,7 +229,7 @@ var model_RMZ_M2022 = function(patient){ // Masui, 2022
  var V1 = theta[1]*ABW/67.3;
  var V2 = theta[2]*ABW/67.3;
  var V3 = (theta[3]+theta[8]*(age-54))*ABW/67.3;
- var CL = (theta[4]+theta[9]*sex*theta[10]*(high_ASA?1:0)) * Math.pow(ABW/67.3,0.75);
+ var CL = (theta[4]+theta[9]*sex+theta[10]*(high_ASA?1:0)) * Math.pow(ABW/67.3,0.75);
  var Q2 = theta[5] * Math.pow(ABW/67.3,0.75);
  var Q3 = theta[6] * Math.pow(ABW/67.3,0.75);
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,0.22);
@@ -3407,6 +3407,7 @@ edge://settings/content/automaticDownloads<br>
 2024/12/20; 本体v1.11.0に合わせてKatariaモデル追加<br>
 2025/9/17; 本体v1.12.0に合わせてEleveldモデル修正、zipでダウンロードする仕様に変更<br>
 2025/10/23; 本体v1.13.0に合わせてCSV出力形式調整<br>
+2025/9/17; 本体v1.14.0に合わせてMasuiモデル修正<br>
 
 </div>
 </body></html>

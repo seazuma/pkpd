@@ -248,7 +248,7 @@ var model_RMZ_M2022 = function(patient){ // Masui, 2022
  var V1 = theta[1]*ABW/67.3;
  var V2 = theta[2]*ABW/67.3;
  var V3 = (theta[3]+theta[8]*(age-54))*ABW/67.3;
- var CL = (theta[4]+theta[9]*sex*theta[10]*(high_ASA?1:0)) * Math.pow(ABW/67.3,0.75);
+ var CL = (theta[4]+theta[9]*sex+theta[10]*(high_ASA?1:0)) * Math.pow(ABW/67.3,0.75);
  var Q2 = theta[5] * Math.pow(ABW/67.3,0.75);
  var Q3 = theta[6] * Math.pow(ABW/67.3,0.75);
  return model_from_VQ(V1,V2,V3,CL,Q2,Q3,0.22);
@@ -3993,6 +3993,7 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 2024/12/20; v1.11.0; Katariaモデル追加<br>
 2025/9/17; v1.12.0; Eleveld,2018モデルの実装誤りを修正、モデルに基づくBISを表示<br>
 2025/10/23; v1.13.0; CSV出力形式調整<br>
+2026/3/2; v1.14.0; Masui,2022モデルの実装誤りを修正<br>
 </div>
 
 <div lang="en">
@@ -4011,6 +4012,7 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 2024/12/20; v1.11.0; Add Kataria model<br>
 2025/9/17; v1.12.0; Fix implementation error in the model Eleveld,2018, display BIS calculated from the model<br>
 2025/10/23; v1.13.0; Fix CSV output format<br>
+2026/3/2; v1.14.0; Fix implementation error in the model Masui,2022<br>
 </div>
 
 </div><!-- id=usage -->
@@ -4025,6 +4027,6 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 <hr>
 
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
-2025/10/23 v1.13.0<br>
+2026/3/2 v1.14.0<br>
 
 </body></html>
