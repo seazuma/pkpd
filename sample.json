@@ -1,24 +1,24 @@
 {
-  "sample1": {
-    "StudyID": "sample1", // 必須、ダウンロードされるファイル名となる
-    "t1": 0,  // シミュレーション開始時刻[分]必須
-    "t2": 60, // シミュレーション開始時刻[分]必須
-    "dt": 1, // 計算時間間隔[分]、任意、未指定の場合は3/60
-    "patient": { // 必須、AnesSimulator本体が出力するJSONと同じ仕様
-      "age": "60", //才
-      "sex": 1,// 0:男性、1:女性
-      "height": "150", //cm
-      "weight": "50", //kg
-      "high_ASA": "false" // ASA-PS 3,4かどうか
+  "sample1": { // This top-level key is used as the CSV filename in the downloaded ZIP
+    "StudyID": "sample1", // Ignored by this tool; extra fields are allowed
+    "t1": 0,  // Required: simulation start time [min]
+    "t2": 60, // Required: simulation end time [min]
+    "dt": 1, // Optional: calculation interval [min]; defaults to 3/60 if omitted
+    "patient": { // Required: same format as JSON output from AnesSimulator
+      "age": "60", // years
+      "sex": 1, // 0, "male", or "m": male; 1, "female", or "f": female
+      "height": "150", // cm
+      "weight": "50", // kg
+      "high_ASA": false // false: ASA-PS 1 or 2; true: ASA-PS 3 or 4
     },
-    "data": { //必須、AnesSimulator本体が出力するJSONと同じ仕様
-      "Fentanyl": { //ラベル名、何でもよい
-        "agent": "Fentanyl", // 薬剤名、登録されているものと合致する必要あり
-        "row_arr": [ // 行情報、必須
+    "data": { // Required: same format as JSON output from AnesSimulator
+      "Fentanyl": { // Used in CSV column headers; different labels are simulated separately
+        "agent": "Fentanyl", // Drug name; see the excerpt below for accepted names
+        "row_arr": [ // Required: row data
           {
-            "unit": "mL", // 単位
+            "unit": "mL", // Unit
             "entry_at": {
-              "10": "2" // "分":"投与量"
+              "10": "2" // "minute": "dose"
             }
           }
         ]
@@ -53,16 +53,16 @@
       "sex": 1,
       "height": "150",
       "weight": "50",
-      "high_ASA": "false"
+      "high_ASA": false
     },
     "data": {
       "Propofol": {
         "agent": "Propofol",
-        "preset_model_g": "model_P_M1991", //計算に使うモデルの指定、任意、未指定の場合最新モデルを使用
+        "preset_model_g": "model_P_M1991", // Optional: calculation model; see the excerpt below; uses the latest model if omitted
         "row_arr": [
           {
-            "unit": "ug/mL", //ug,mcg,μgはどれでも認識
-            "TCI_model_g": "model_P_M1991", // TCIに使うモデルの指定、必須
+            "unit": "ug/mL", // ug, mcg, and μg are all accepted
+            "TCI_model_g": "model_P_M1991", // Required: TCI model; see the excerpt below
             "entry_at": {
               "10.0": "3",
               "40.0": "0"
@@ -73,7 +73,7 @@
     }
   }
 }
-/* 薬剤文字列やモデルの指定文字列は本体のソースコードの一部を抜粋した以下を参照：
+/* See the excerpt from the main source below for agent names and model names:
 AgentInfoList["Propofol"].preset_model_arr = [
  {model_g: model_P_E2018, label: "Eleveld,2018"},
  {model_g: model_P_A2005, label: "Absalom,2005"},

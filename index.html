@@ -480,6 +480,59 @@ function setEvent(elem,key,func){
  if(elem.addEventListener){ elem.addEventListener(key, func, false); }
  else if(elem.attachEvent){ elem.attachEvent(key, func, false); }
 }
+function set_patient_input(patient){
+ var sex = patient.sex;
+ if(typeof sex == "string") sex = sex.trim().toLowerCase();
+ if(sex === 0 || sex === "0" || sex === "male" || sex === "m") sex = "0";
+ else if(sex === 1 || sex === "1" || sex === "female" || sex === "f") sex = "1";
+ else return false;
+ var high_ASA = patient.high_ASA;
+ if(typeof high_ASA == "string") high_ASA = high_ASA.trim().toLowerCase();
+ if(high_ASA === false || high_ASA === 0 || high_ASA === "0" || high_ASA === "false") high_ASA = "0";
+ else if(high_ASA === true || high_ASA === 1 || high_ASA === "1" || high_ASA === "true") high_ASA = "1";
+ else return false;
+ document.getElementById("age").value = patient.age;
+ document.getElementById("sex").value = sex;
+ document.getElementById("height").value = patient.height;
+ document.getElementById("weight").value = patient.weight;
+ document.getElementById("high_ASA").value = high_ASA;
+ return true;
+}
+function remove_json_comments(text){
+ var result = "", i = 0, in_string = false, escaped = false;
+ while(i < text.length){
+  var c = text.charAt(i);
+  if(in_string){
+   result += c;
+   if(escaped) escaped = false;
+   else if(c == "\\") escaped = true;
+   else if(c == '"') in_string = false;
+   i++;
+  }
+  else if(c == '"'){
+   in_string = true;
+   result += c;
+   i++;
+  }
+  else if(c == "/" && text.charAt(i+1) == "*"){
+   var comment_end = text.indexOf("*/", i+2);
+   if(comment_end < 0) throw new SyntaxError("Unterminated block comment");
+   result += text.substring(i, comment_end+2).replace(/[^\r\n]/g, " ");
+   i = comment_end+2;
+  }
+  else if(c == "/" && text.charAt(i+1) == "/"){
+   var line_end = i+2;
+   while(line_end < text.length && text.charAt(line_end) != "\r" && text.charAt(line_end) != "\n") line_end++;
+   result += text.substring(i, line_end).replace(/[^\r\n]/g, " ");
+   i = line_end;
+  }
+  else{
+   result += c;
+   i++;
+  }
+ }
+ return result;
+}
 function transposeCsvMatrix(matrix){
  var rowCount = matrix.length;
  if(rowCount === 0){ return []; }
@@ -2590,7 +2643,7 @@ function dose_done(){
  var time = hm2min( document.getElementById("entry_time").value  );
  if( isNaN(time) ){
   time = 0;
-  alert(Lang=="jp"?"0:00に登録しました(時刻形式が不正)":"Registered at 0:00 (invalid input)")
+  alert(Lang=="ja"?"0:00に登録しました(時刻形式が不正)":"Registered at 0:00 (invalid input)");
  }
  var dose = parseFloat(document.getElementById("dose").value);
  var div = Setting.edit_div;
@@ -2934,7 +2987,7 @@ function output_data(){
 function load_data(){
  var temp_object;
  try{
-  temp_object = JSON.parse(document.getElementById("output_data_area").value.replace(/[\n\r]/g, ""));
+  temp_object = JSON.parse(remove_json_comments(document.getElementById("output_data_area").value));
  } catch(e){
   alert(e);
   return;
@@ -2944,12 +2997,9 @@ function load_data(){
   return;
  }
  if(!confirm(Lang=="en"?"Are you sure to remove current data?":"現在の情報は上書きされます"))return;
- if(temp_object.patient){
-  document.getElementById("age").value = temp_object.patient.age;
-  document.getElementById("sex").value = temp_object.patient.sex;
-  document.getElementById("height").value = temp_object.patient.height;
-  document.getElementById("weight").value = temp_object.patient.weight;
-  document.getElementById("high_ASA").value = temp_object.patient.high_ASA?"1":"0";
+ if(temp_object.patient && !set_patient_input(temp_object.patient)){
+  alert(Lang=="en"?"Invalid sex or high_ASA value":"sexまたはhigh_ASAの値が不正です");
+  return;
  }
  load_patient() //v1.6.2
  update_x_axis(parseInt(temp_object.t1||0), parseInt(temp_object.t_scale||60));
@@ -3635,7 +3685,7 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
  <span lang="ja">透過度</span>
  <span lang="en">Opacity</span>
 :<span id="area4_a_new">0.3</span>←<input id="area4_a" value="0.3" onfocus="this.select();" onchange="update_area4_alpha();" onkeydown="if(event.keyCode==13)area4_ref();">,
- <a href="javascript:area4_ref()"><span lang="ja">再サンプル</span lang="ja"><span lang="en">Resample<span lang="en"></a>
+ <a href="javascript:area4_ref()"><span lang="ja">再サンプル</span><span lang="en">Resample</span></a>
 <br>
  <span lang="ja"><a href="javascript:area4_output_conc();">↓濃度出力↓</a></span>
  <span lang="en"><a href="javascript:area4_output_conc();">↓output concentration↓</a> from </span>
@@ -3651,6 +3701,11 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 
 <div lang="ja"><a href="javascript:appear_disappear('area_output_load');">▼出力・読み込み▼</a></div>
 <div lang="en"><a href="javascript:appear_disappear('area_output_load');">▼Output/Load▼</a></div>
+
+<div style="margin:4px 0 8px 0;">
+ <span lang="ja"><a href="multiple_cases.html">複数症例シミュレーション(別ページ)</a></span>
+ <span lang="en"><a href="multiple_cases.html">Multiple case simulation (separate page)</a></span>
+</div>
 
 <div id="area_output_load" style="display:none;">
  <span lang="ja">
@@ -3673,8 +3728,6 @@ ASA-PS: <select id="high_ASA" onchange="load_patient();update_graph();"><option 
 <br>
  <textarea id="output_conc_area" rows="5" wrap="off"></textarea>
  <div id="csv_link"></div>
- <span lang="ja"><a href="forstudy.html">複数症例シミュレーション(別ページ)</a></span>
- <span lang="en"><a href="forstudy.html">Multiple Case Simulation (separate page, Japanese language only)</a></span>
 </div>
 
 <hr>
@@ -3994,6 +4047,7 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 2025/9/17; v1.12.0; Eleveld,2018モデルの実装誤りを修正、モデルに基づくBISを表示<br>
 2025/10/23; v1.13.0; CSV出力形式調整<br>
 2026/3/2; v1.14.0; Masui,2022モデルの実装誤りを修正<br>
+2026/7/11; v1.14.1; JSON読み込み処理を堅牢化、軽微な表示修正<br>
 </div>
 
 <div lang="en">
@@ -4013,6 +4067,7 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 2025/9/17; v1.12.0; Fix implementation error in the model Eleveld,2018, display BIS calculated from the model<br>
 2025/10/23; v1.13.0; Fix CSV output format<br>
 2026/3/2; v1.14.0; Fix implementation error in the model Masui,2022<br>
+2026/7/11; v1.14.1; Make JSON loading more robust and fix minor display issues<br>
 </div>
 
 </div><!-- id=usage -->
@@ -4027,6 +4082,6 @@ The dose ("c" if there is no dose) is displayed in red when parameters are editt
 <hr>
 
 <a href="https://github.com/seazuma/pkpd">https://github.com/seazuma/pkpd</a><br>
-2026/3/2 v1.14.0<br>
+2026/7/11 v1.14.1<br>
 
 </body></html>

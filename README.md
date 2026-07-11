@@ -5,6 +5,7 @@
 * 3コンパートメント濃度の可視化
 * フェンタニル個人差の可視化
 * JSON形式で入出力可能
+* 複数症例シミュレーション: https://seazuma.github.io/pkpd/multiple_cases.html
 
 ---
 
@@ -15,4 +16,5 @@
 * Visualize amounts in 3 compartments
 * Visualize fentanyl individual variance
 * Output/Load with JSON format
+* Multiple case simulation: https://seazuma.github.io/pkpd/multiple_cases.html
 
